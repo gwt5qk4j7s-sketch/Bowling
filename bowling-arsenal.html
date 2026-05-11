@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bowling Arsenal">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#040710">
+<title>🎳 Bowling Arsenal</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#080c14;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',system-ui,sans-serif;font-size:14px;overflow:hidden}
+#root{height:100%;display:flex;flex-direction:column}
+::-webkit-scrollbar{display:none}
+input,textarea,select,button{font-family:inherit}
+input::placeholder,textarea::placeholder{color:#334155}
+a{color:inherit;text-decoration:none}
+.scroll{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.hscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useRef,useCallback}=React;
+
+/* ── Storage: IndexedDB primary, localStorage fallback ── */
+const DB_NAME="BowlingArsenal",DB_VER=1,STORE="kv";
+let _db=null;
+function openDB(){
+  if(_db)return Promise.resolve(_db);
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(DB_NAME,DB_VER);
+    req.onupgradeneeded=e=>{e.target.result.createObjectStore(STORE);};
+    req.onsuccess=e=>{_db=e.target.result;res(_db);};
+    req.onerror=()=>rej(req.error);
+  });
+}
+const IDB={
+  get:async k=>{
+    try{
+      const db=await openDB();
+      return new Promise((res,rej)=>{
+        const tx=db.transaction(STORE,"readonly");
+        const req=tx.objectStore(STORE).get(k);
+        req.onsuccess=()=>res(req.result!=null?{value:req.result}:null);
+        req.onerror=()=>rej(req.error);
+      });
+    }catch{
+      try{const v=localStorage.getItem(k);return v?{value:v}:null;}catch{return null;}
+    }
+  },
+  set:async(k,v)=>{
+    try{
+      const db=await openDB();
+      await new Promise((res,rej)=>{
+        const tx=db.transaction(STORE,"readwrite");
+        const req=tx.objectStore(STORE).put(v,k);
+        req.onsuccess=()=>res();
+        req.onerror=()=>rej(req.error);
+      });
+    }catch{}
+    try{localStorage.setItem(k,v);}catch{}
+  },
+};
+const LS=IDB;
+
+/* ── URL Helpers ── */
+const THUMB =s=>`https://www.bowwwl.com/sites/default/files/styles/ball_grid/public/balls/${s}.png`;
+const MAIN  =s=>`https://www.bowwwl.com/sites/default/files/styles/ball_image_main/public/balls/${s}.png`;
+const LOGO  =f=>`https://www.bowwwl.com/sites/default/files/styles/brand_logo_small/public/brand-logo/${f}`;
+const DETAIL=(b,s)=>`https://www.bowwwl.com/bowling-ball-database/${b}/${s}`;
+
+const BRAND_LOGOS={"Storm":"storm-logo-teal.png","Roto Grip":"roto-grip-red.png","Hammer":"hammer-bowling.png","Brunswick":"brunswick-dark.png","Motiv":"motiv-orange.png","900 Global":"900-global-logo.png","DV8":"dv8-black.png","Ebonite":"ebonite.png","Track":"track-bowling.png","Radical":"radical-black.png","Columbia 300":"columbia-300.png","SWAG":"swag-logo.png","Pyramid":"pyramid-bowling_1.png"};
+
+const CT={Solid:{color:"#ef4444",bg:"#450a0a"},Pearl:{color:"#a78bfa",bg:"#2e1065"},Hybrid:{color:"#f97316",bg:"#431407"},Urethane:{color:"#22c55e",bg:"#052e16"},NU:{color:"#38bdf8",bg:"#082f49"},MCP:{color:"#f59e0b",bg:"#451a03"},Polyester:{color:"#94a3b8",bg:"#0f172a"},Particle:{color:"#ec4899",bg:"#500724"}};
+const ctC=t=>CT[t]?.color||"#64748b";
+const ctB=t=>CT[t]?.bg||"#0f172a";
+
+/* ── Ball Database ── */
+const BALLS=[
+//  BALL DATABASE  (bowwwl.com pages 0-10, 15 lb, Oct 2023+)
+// ══════════════════════════════════════════════════════════════
+const BALLS = [
+  // ── Jun 2026 ─────────────────────────────────────────────
+  {id:1,brand:"Motiv",bS:"motiv",name:"Covert VIP ExJ",slug:"covert-vip-exj",img:"motiv-covert-vip-exj-vip-logo",date:"2026-06",cover:"Leverage HFS Solid",ct:"Solid",finish:"4000 LSS",core:"Vanquish/Quadfire",cT:"Symmetric",rg:2.470,diff:0.056,mb:null},
+  // ── May 2026 ─────────────────────────────────────────────
+  {id:2,brand:"Ebonite",bS:"ebonite",name:"Turbo X NU",slug:"turbo-x-nu",img:"ebonite-turbo-x-nu",date:"2026-05",cover:"NU Active",ct:"NU",finish:"500/1000 Siaair MP",core:"Turbo (2025+)",cT:"Symmetric",rg:2.517,diff:0.040,mb:null},
+  {id:3,brand:"Hammer",bS:"hammer",name:"Raw Hammer Black/Grey",slug:"raw-hammer-blackgrey",img:"hammer-raw-hammer-black-grey",date:"2026-05",cover:"Juiced Solid",ct:"Solid",finish:"500/1500/3000 Siaair MP",core:"Raw Hammer (2021)",cT:"Symmetric",rg:2.537,diff:0.038,mb:null},
+  {id:4,brand:"Hammer",bS:"hammer",name:"Raw Hammer R/W/P",slug:"raw-hammer-redwhitepurple",img:"hammer-raw-hammer-red-white-purple",date:"2026-05",cover:"Juiced Pearl",ct:"Pearl",finish:"500/1000/2000 Siaair + Polish",core:"Raw Hammer (2021)",cT:"Symmetric",rg:2.537,diff:0.038,mb:null},
+  {id:5,brand:"Hammer",bS:"hammer",name:"Spawn",slug:"spawn",img:"hammer-spawn",date:"2026-05",cover:"HK22C2 Solid",ct:"Solid",finish:"500/1000 Siaair MP",core:"Gauntlet",cT:"Asymmetric",rg:2.501,diff:0.050,mb:0.012},
+  {id:6,brand:"SWAG",bS:"swag",name:"Archive 2.0",slug:"archive-20",img:"swag-archive-2",date:"2026-05",cover:"M56 Pearl",ct:"Pearl",finish:"3000 Sanded",core:"Archive",cT:"Asymmetric",rg:2.557,diff:0.051,mb:0.036},
+  {id:7,brand:"Hammer",bS:"hammer",name:"Black Widow Toxin Pearl",slug:"black-widow-toxin-pearl",img:"hammer-black-widow-toxin-pearl",date:"2026-05",cover:"Hyper Aggression Plus Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:8,brand:"Storm",bS:"storm",name:"Monsoon",slug:"monsoon",img:"storm-monsoon",date:"2026-05",cover:"Reactor Solid",ct:"Solid",finish:"2000 Abralon",core:"Atmos A.I.",cT:"Symmetric",rg:2.530,diff:0.042,mb:null},
+  {id:9,brand:"Storm",bS:"storm",name:"Rocket A.I.",slug:"rocket-ai",img:"storm-rocket-ai",date:"2026-05",cover:"A1S Pearl",ct:"Pearl",finish:"Power Edge",core:"Booster A.I.",cT:"Symmetric",rg:2.530,diff:0.048,mb:null},
+  // ── Apr 2026 ─────────────────────────────────────────────
+  {id:10,brand:"Storm",bS:"storm",name:"Ghost Lock SE",slug:"ghost-lock-se",img:"storm-ghost-lock-se",date:"2026-04",cover:"NeX+ Solid",ct:"Solid",finish:"1500 Polished",core:"RAD-X",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:11,brand:"Motiv",bS:"motiv",name:"Venom Hysteria",slug:"venom-hysteria",img:"motiv-venom-hysteria",date:"2026-04",cover:"Propulsion MXV Pearl",ct:"Pearl",finish:"5000 LSS",core:"Gear",cT:"Symmetric",rg:2.480,diff:0.034,mb:null},
+  {id:12,brand:"Brunswick",bS:"brunswick",name:"Strategy",slug:"strategy",img:"brunswick-strategy",date:"2026-04",cover:"HK22C2 - EVO Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Dual Centric",cT:"Asymmetric",rg:2.509,diff:0.047,mb:0.016},
+  {id:13,brand:"Radical",bS:"radical",name:"Revenge Pearl",slug:"revenge-pearl",img:"radical-revenge-pearl",date:"2026-04",cover:"HK22 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Sneak Attack",cT:"Symmetric",rg:2.544,diff:0.036,mb:null},
+  {id:14,brand:"Radical",bS:"radical",name:"Revenge Solid",slug:"revenge-solid",img:"radical-revenge-solid",date:"2026-04",cover:"HK22 Solid",ct:"Solid",finish:"500/1000/1500 Siaair + Compound",core:"Sneak Attack",cT:"Symmetric",rg:2.544,diff:0.036,mb:null},
+  {id:15,brand:"Track",bS:"track",name:"Kinetic Sapphire Ice",slug:"kinetic-sapphire-ice",img:"track-kinetic-sapphire-ice",date:"2026-04",cover:"HK22 - Prime Response Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Shuttle",cT:"Asymmetric",rg:2.480,diff:0.040,mb:0.005},
+  {id:16,brand:"Storm",bS:"storm",name:"Norm Duke Clear",slug:"norm-duke-clear",img:"storm-norm-duke-clear",date:"2026-04",cover:"Ultra Clear Polyester",ct:"Polyester",finish:"3500 Polished",core:"Hex",cT:"Symmetric",rg:2.660,diff:0.018,mb:null},
+  {id:17,brand:"Ebonite",bS:"ebonite",name:"Wolf Blaze",slug:"wolf-blaze",img:"ebonite-wolf-blaze",date:"2026-04",cover:"HK22 - XL7900 Solid Plus",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Wolf",cT:"Symmetric",rg:2.483,diff:0.049,mb:null},
+  // ── Mar 2026 ─────────────────────────────────────────────
+  {id:18,brand:"DV8",bS:"dv8",name:"Double Trouble",slug:"double-trouble",img:"dv8-double-trouble",date:"2026-03",cover:"HK22 - Havoc Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair MP",core:"Dualistic",cT:"Symmetric",rg:2.496,diff:0.045,mb:null},
+  {id:19,brand:"Ebonite",bS:"ebonite",name:"Game Breaker 5 Hybrid",slug:"game-breaker-5-hybrid",img:"ebonite-game-breaker-5-hybrid",date:"2026-03",cover:"HK22 - GB 12.7 Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Enhanced V2",cT:"Symmetric",rg:2.480,diff:0.048,mb:null},
+  {id:20,brand:"Hammer",bS:"hammer",name:"Full Effect",slug:"full-effect",img:"hammer-full-effect",date:"2026-03",cover:"HK22C2 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Huntsman",cT:"Asymmetric",rg:2.470,diff:0.050,mb:0.017},
+  {id:21,brand:"Hammer",bS:"hammer",name:"Purple Pearl Urethane 78D",slug:"purple-pearl-urethane-78d",img:"hammer-purple-pearl-urethane-78d",date:"2026-03",cover:"Urethane Pearl 78D",ct:"Urethane",finish:"500 Siaair MP",core:"Super LED",cT:"Symmetric",rg:2.632,diff:0.034,mb:null},
+  {id:22,brand:"Radical",bS:"radical",name:"Vexed",slug:"vexed",img:"radical-vexed",date:"2026-03",cover:"HK22C+ Solid",ct:"Solid",finish:"500/1000/3000 Siaair MP",core:"Vexed",cT:"Asymmetric",rg:2.498,diff:0.036,mb:0.012},
+  {id:23,brand:"Motiv",bS:"motiv",name:"Supra Sport",slug:"supra-sport",img:"motiv-supra-sport",date:"2026-03",cover:"Leverage MFS Solid",ct:"Solid",finish:"4000 LSS",core:"Quadfire",cT:"Symmetric",rg:2.550,diff:0.043,mb:null},
+  {id:24,brand:"Ebonite",bS:"ebonite",name:"The One Giant",slug:"the-one-giant",img:"ebonite-the-one-giant",date:"2026-03",cover:"HK22C - GB 15.1 Solid",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Centrex Sym. MB",cT:"Asymmetric",rg:2.466,diff:0.056,mb:0.027},
+  {id:25,brand:"Storm",bS:"storm",name:"Ion Max Pearl",slug:"ion-max-pearl",img:"storm-ion-max-pearl",date:"2026-03",cover:"NRG Pearl",ct:"Pearl",finish:"Power Edge",core:"Element Max A.I.",cT:"Asymmetric",rg:2.470,diff:0.055,mb:0.014},
+  {id:26,brand:"Roto Grip",bS:"roto-grip",name:"Gremlin Tour-X",slug:"gremlin-tour-x",img:"roto-grip-gremlin-tour-x",date:"2026-03",cover:"V-R1 Hybrid",ct:"Hybrid",finish:"4000 Abralon",core:"Rondure Tour-X",cT:"Asymmetric",rg:2.480,diff:0.034,mb:0.011},
+  {id:27,brand:"Columbia 300",bS:"columbia-300",name:"Pulse Hybrid",slug:"pulse-hybrid",img:"columbia-300-pulse-hybrid",date:"2026-03",cover:"Hyperflex Hybrid",ct:"Hybrid",finish:"500/1000/2000 Siaair MP",core:"Pulse PowerCOR",cT:"Symmetric",rg:2.468,diff:0.045,mb:null},
+  // ── Feb 2026 ─────────────────────────────────────────────
+  {id:28,brand:"Storm",bS:"storm",name:"Bionic",slug:"bionic",img:"storm-bionic",date:"2026-02",cover:"NRG Hybrid",ct:"Hybrid",finish:"4000 Abralon",core:"Torsion A.I.",cT:"Symmetric",rg:2.470,diff:0.050,mb:null},
+  {id:29,brand:"Storm",bS:"storm",name:"Concept",slug:"concept",img:"storm-concept",date:"2026-02",cover:"ARC Pearl",ct:"Pearl",finish:"1000 Abralon",core:"Radius",cT:"Symmetric",rg:2.610,diff:0.020,mb:null},
+  {id:30,brand:"Brunswick",bS:"brunswick",name:"Combat Hybrid",slug:"combat-hybrid",img:"brunswick-combat-hybrid",date:"2026-02",cover:"Alpha Premier Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Rampart",cT:"Asymmetric",rg:2.502,diff:0.051,mb:0.019},
+  {id:31,brand:"Brunswick",bS:"brunswick",name:"Crown Victory Pearl",slug:"crown-victory-pearl",img:"brunswick-crown-victory-pearl",date:"2026-02",cover:"HK22 - Savvy Hook Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Tiered Hexagon",cT:"Symmetric",rg:2.540,diff:0.045,mb:null},
+  {id:32,brand:"Columbia 300",bS:"columbia-300",name:"Piranha Solid",slug:"piranha-solid",img:"columbia-300-piranha-solid",date:"2026-02",cover:"Hyperflex Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"Piranha",cT:"Symmetric",rg:2.554,diff:0.043,mb:null},
+  {id:33,brand:"Track",bS:"track",name:"Stealth Mode Hybrid",slug:"stealth-mode-hybrid",img:"track-stealth-mode-hybrid",date:"2026-02",cover:"HK22C - Super Response Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Stealth",cT:"Symmetric",rg:2.482,diff:0.056,mb:null},
+  {id:34,brand:"Track",bS:"track",name:"Synthesis",slug:"synthesis",img:"track-synthesis",date:"2026-02",cover:"HK22C - QR-12 Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"I-Core 4.0",cT:"Asymmetric",rg:2.480,diff:0.053,mb:0.020},
+  {id:35,brand:"SWAG",bS:"swag",name:"Serpent Hybrid",slug:"serpent-hybrid",img:"swag-serpent-hybrid",date:"2026-02",cover:"Serum AP26 Hybrid",ct:"Hybrid",finish:"4000 Abralon",core:"Serpent",cT:"Asymmetric",rg:2.510,diff:0.048,mb:0.016},
+  {id:36,brand:"SWAG",bS:"swag",name:"Judgement Hybrid",slug:"judgement-hybrid",img:"swag-judgement-hybrid",date:"2026-02",cover:"Slayer AP26 Hybrid",ct:"Hybrid",finish:"3000 Abralon",core:"Guillotine",cT:"Asymmetric",rg:2.510,diff:0.052,mb:0.017},
+  {id:37,brand:"SWAG",bS:"swag",name:"Assassin Pearl",slug:"assassin-pearl",img:"swag-assassin-pearl",date:"2026-02",cover:"Dagger AP26 Pearl",ct:"Pearl",finish:"1500 Abralon",core:"Assassin",cT:"Symmetric",rg:2.520,diff:0.048,mb:null},
+  {id:38,brand:"SWAG",bS:"swag",name:"Unreal Solid",slug:"unreal-solid",img:"swag-unreal-solid",date:"2026-02",cover:"Never Quit AP26 Solid",ct:"Solid",finish:"3000 Abralon",core:"Unreal",cT:"Symmetric",rg:2.510,diff:0.047,mb:null},
+  {id:39,brand:"Radical",bS:"radical",name:"Deep Impact",slug:"deep-impact",img:"radical-deep-impact",date:"2026-02",cover:"HK22C+ Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Modified Torpedo",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.019},
+  {id:40,brand:"Motiv",bS:"motiv",name:"Evoke Mayhem",slug:"evoke-mayhem",img:"motiv-evoke-mayhem",date:"2026-02",cover:"Propulsion MXV Solid",ct:"Solid",finish:"2000 LSS",core:"Overload",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.015},
+  // ── Jan 2026 ─────────────────────────────────────────────
+  {id:41,brand:"Roto Grip",bS:"roto-grip",name:"Hustle BP",slug:"hustle-bp-blackpink",img:"roto-grip-hustle-bp",date:"2026-01",cover:"VTC Pearl",ct:"Pearl",finish:"1500 Polished",core:"Hustle",cT:"Symmetric",rg:2.530,diff:0.030,mb:null},
+  {id:42,brand:"Storm",bS:"storm",name:"Absolute Reign",slug:"absolute-reign",img:"storm-absolute-reign",date:"2026-01",cover:"R2S DEEP Solid",ct:"Solid",finish:"Power Edge",core:"Sentinel",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.021},
+  {id:43,brand:"900 Global",bS:"900-global",name:"Vengeance",slug:"vengeance",img:"900-global-vengeance",date:"2026-01",cover:"Reserve Blend 91 Solid",ct:"Solid",finish:"2000 Abralon",core:"Blast A.I.",cT:"Symmetric",rg:2.470,diff:0.055,mb:null},
+  {id:44,brand:"Roto Grip",bS:"roto-grip",name:"Transformer",slug:"transformer",img:"roto-grip-transformer",date:"2026-01",cover:"V-R1 Solid",ct:"Solid",finish:"4000 Abralon",core:"Morph-Wing",cT:"Asymmetric",rg:2.510,diff:0.051,mb:0.015},
+  {id:45,brand:"Storm",bS:"storm",name:"Virtual Gravity Destino",slug:"virtual-gravity-destino",img:"storm-virtual-gravity-destino",date:"2026-01",cover:"A1S Pearl",ct:"Pearl",finish:"Power Edge",core:"Shape-Lock HD A.I.",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.021},
+  {id:46,brand:"DV8",bS:"dv8",name:"Dark Side Curse",slug:"dark-side-curse",img:"ev8-dark-side-curse",date:"2026-01",cover:"Inciter Solid",ct:"Solid",finish:"500/1000/1500 Siaair + Compound",core:"Duality",cT:"Symmetric",rg:2.480,diff:0.036,mb:null},
+  {id:47,brand:"Ebonite",bS:"ebonite",name:"Spartan",slug:"spartan",img:"ebonite-spartan",date:"2026-01",cover:"HK22C2 - Optimize Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"Iron Fist V2",cT:"Asymmetric",rg:2.473,diff:0.053,mb:0.019},
+  {id:48,brand:"Hammer",bS:"hammer",name:"Black Widow 3.0 Dynasty",slug:"black-widow-30-dynasty",img:"hammer-black-widow-30-dynasty",date:"2026-01",cover:"HK22C - Cohesion Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:49,brand:"Hammer",bS:"hammer",name:"Hammerhead Pearl",slug:"hammerhead-pearl",img:"hammer-hammerhead-pearl",date:"2026-01",cover:"HK22 - Aggressive Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Spheroid (2025)",cT:"Symmetric",rg:2.481,diff:0.048,mb:null},
+  {id:50,brand:"Radical",bS:"radical",name:"Outer Limits Black Hole",slug:"outer-limits-black-hole",img:"radical-outer-limits-black-hole",date:"2026-01",cover:"HK22C Solid",ct:"Solid",finish:"500/1000/1500 Siaair + Compound",core:"Outer Limits",cT:"Asymmetric",rg:2.499,diff:0.051,mb:0.014},
+  {id:51,brand:"Motiv",bS:"motiv",name:"Apex Jackal",slug:"apex-jackal",img:"motiv-apex-jackal",date:"2026-01",cover:"Propulsion MXV Pearl",ct:"Pearl",finish:"5000 LSS",core:"Apex Predator",cT:"Asymmetric",rg:2.520,diff:0.055,mb:0.020},
+  // ── Dec 2025 ─────────────────────────────────────────────
+  {id:52,brand:"Ebonite",bS:"ebonite",name:"Pivot Rotation",slug:"pivot-rotation",img:"ebonite-pivot-rotation",date:"2025-12",cover:"HK22C - XL4500 Plus",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"VIF 2.0",cT:"Asymmetric",rg:2.481,diff:0.050,mb:0.017},
+  {id:53,brand:"Storm",bS:"storm",name:"Next Factor",slug:"next-factor",img:"storm-next-factor",date:"2025-12",cover:"R3S Pearl",ct:"Pearl",finish:"Power Edge",core:"RAD-TQ",cT:"Asymmetric",rg:2.560,diff:0.051,mb:0.017},
+  {id:54,brand:"Brunswick",bS:"brunswick",name:"Crown 78U",slug:"crown-78u",img:"brunswick-crown-78u",date:"2025-12",cover:"Urethane Solid 78D",ct:"Urethane",finish:"500/1000 Siaair MP",core:"Tiered Hexagon (U)",cT:"Symmetric",rg:2.549,diff:0.046,mb:null},
+  {id:55,brand:"Brunswick",bS:"brunswick",name:"Danger Zone",slug:"danger-zone",img:"brunswick-danger-zone-black",date:"2025-12",cover:"HK22 - PowerKoil 26 Solid",ct:"Solid",finish:"500/1000/2000 Siaair + Compound",core:"Danger Zone",cT:"Symmetric",rg:2.501,diff:0.048,mb:null},
+  {id:56,brand:"Brunswick",bS:"brunswick",name:"Danger Zone Purple Ice",slug:"danger-zone-purple-ice",img:"brunswick-danger-zone-purple-ice",date:"2025-12",cover:"HK22 - PowerKoil 26 Pearl",ct:"Pearl",finish:"500 Siaair + Polish",core:"Danger Zone",cT:"Symmetric",rg:2.501,diff:0.048,mb:null},
+  {id:57,brand:"Columbia 300",bS:"columbia-300",name:"Street Rally",slug:"street-rally",img:"columbia-300-street-rally",date:"2025-12",cover:"HK22C2 - Formula 1 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Shifter",cT:"Asymmetric",rg:2.478,diff:0.050,mb:0.015},
+  {id:58,brand:"Ebonite",bS:"ebonite",name:"Titan Angular One",slug:"titan-angular-one",img:"ebonite-titan-angular-one",date:"2025-12",cover:"HK22C - XL8900 Plus",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Iron",cT:"Asymmetric",rg:2.463,diff:0.053,mb:0.019},
+  {id:59,brand:"Storm",bS:"storm",name:"Motor Rev",slug:"motor-rev",img:"storm-motor-rev",date:"2025-12",cover:"RX Pro Pearl",ct:"Pearl",finish:"1500 Polished",core:"Torque A.I.",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.017},
+  {id:60,brand:"Roto Grip",bS:"roto-grip",name:"Attention Sign",slug:"attention-sign",img:"roto-grip-attention-sign",date:"2025-12",cover:"U-R1 Solid",ct:"Solid",finish:"2000 Abralon",core:"Momentous AV + A.I.",cT:"Asymmetric",rg:2.480,diff:0.049,mb:0.017},
+  {id:61,brand:"900 Global",bS:"900-global",name:"Phantom Cruise",slug:"phantom-cruise",img:"900-global-phantom-cruise",date:"2025-12",cover:"Reserve Blend 93 Pearl",ct:"Pearl",finish:"3000 Abralon",core:"Ellipticon A.I.",cT:"Asymmetric",rg:2.480,diff:0.056,mb:0.030},
+  // ── Nov 2025 ─────────────────────────────────────────────
+  {id:62,brand:"Storm",bS:"storm",name:"Marvel Scale",slug:"marvel-scale",img:"storm-marvel-scale",date:"2025-11",cover:"R2S DEEP Solid",ct:"Solid",finish:"4000 Abralon",core:"Centripetal A.I.",cT:"Symmetric",rg:2.470,diff:0.053,mb:null},
+  {id:63,brand:"Pyramid",bS:"pyramid",name:"Prime Solid",slug:"prime-solid",img:"pyramid-prime-solid",date:"2025-11",cover:"GPS Nav. Solid ATX-XX",ct:"Solid",finish:"2000 Abralon",core:"Fractal Torus",cT:"Asymmetric",rg:2.547,diff:0.050,mb:0.018},
+  {id:64,brand:"Motiv",bS:"motiv",name:"Nebula",slug:"nebula",img:"motiv-nebula",date:"2025-11",cover:"Dark Matter Prop. Pearl",ct:"Pearl",finish:"5500 LSP",core:"Hadron",cT:"Symmetric",rg:2.500,diff:0.045,mb:null},
+  {id:65,brand:"900 Global",bS:"900-global",name:"Viking",slug:"viking",img:"900-global-viking",date:"2025-11",cover:"Reserve Blend 90 Hybrid",ct:"Hybrid",finish:"Power Edge",core:"Strobe A.I.",cT:"Asymmetric",rg:2.510,diff:0.052,mb:0.016},
+  {id:66,brand:"Hammer",bS:"hammer",name:"Zero Mercy Solid",slug:"zero-mercy-solid",img:"hammer-zero-mercy-solid",date:"2025-11",cover:"HK22C2 Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"Super Offset",cT:"Asymmetric",rg:2.524,diff:0.053,mb:0.020},
+  {id:67,brand:"Hammer",bS:"hammer",name:"Zero Mercy Pearl",slug:"zero-mercy-pearl",img:"hammer-zero-mercy-pearl",date:"2025-11",cover:"HK22C2 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Super Offset",cT:"Asymmetric",rg:2.524,diff:0.053,mb:0.020},
+  {id:68,brand:"Hammer",bS:"hammer",name:"NU 2.0",slug:"nu-20",img:"hammer-nu-20",date:"2025-11",cover:"NU Active",ct:"NU",finish:"500/2000 Siaair MP",core:"LED (reactive)",cT:"Symmetric",rg:2.586,diff:0.027,mb:null},
+  {id:69,brand:"Ebonite",bS:"ebonite",name:"Entity Pearl",slug:"entity-pearl",img:"ebonite-entity-pearl",date:"2025-11",cover:"HK22C - Optimize Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Entity",cT:"Asymmetric",rg:2.515,diff:0.052,mb:0.020},
+  {id:70,brand:"DV8",bS:"dv8",name:"Heckler Hybrid",slug:"heckler-hybrid",img:"dv8-heckler-hybrid",date:"2025-11",cover:"HK22C - Max Havoc Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Unholy",cT:"Asymmetric",rg:2.504,diff:0.051,mb:0.010},
+  {id:71,brand:"Storm",bS:"storm",name:"Phaze II Pearl",slug:"phaze-ii-pearl",img:"storm-phaze-ii-pearl",date:"2025-11",cover:"TX-25 Pearl",ct:"Pearl",finish:"Power Edge",core:"Velocity",cT:"Symmetric",rg:2.480,diff:0.051,mb:null},
+  {id:72,brand:"Hammer",bS:"hammer",name:"Gauntlet Hybrid",slug:"gauntlet-hybrid",img:"hammer-gauntlet-hybrid",date:"2025-11",cover:"HK22C2 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Gauntlet (2017-25)",cT:"Asymmetric",rg:2.500,diff:0.050,mb:0.012},
+  {id:73,brand:"Hammer",bS:"hammer",name:"Gauntlet Black Solid",slug:"gauntlet-black-solid",img:"hammer-gauntlet-black-solid",date:"2025-11",cover:"HK22C2 Solid",ct:"Solid",finish:"500/1000 Siaair MP",core:"Gauntlet (2017-25)",cT:"Asymmetric",rg:2.500,diff:0.050,mb:0.012},
+  {id:74,brand:"Storm",bS:"storm",name:"Prime Gate",slug:"prime-gate",img:"storm-prime-gate",date:"2025-11",cover:"XT Solid",ct:"Solid",finish:"Xtra Shine",core:"Ignition",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.019},
+  {id:75,brand:"Storm",bS:"storm",name:"PhysiX Grandeur",slug:"physix-grandeur",img:"storm-physix-grandeur",date:"2025-11",cover:"R2S Solid",ct:"Solid",finish:"4000 Abralon",core:"Atomic A.I.",cT:"Asymmetric",rg:2.470,diff:0.055,mb:0.018},
+  {id:76,brand:"900 Global",bS:"900-global",name:"Remaster Honey Badger",slug:"remaster-honey-badger",img:"900-global-remaster-honey-badger",date:"2025-11",cover:"Reserve Blend 70E Pearl",ct:"Pearl",finish:"Power Edge",core:"Grapnel 2.0 A.I.",cT:"Asymmetric",rg:2.530,diff:0.050,mb:0.013},
+  {id:77,brand:"Storm",bS:"storm",name:"Code Honor",slug:"code-honor",img:"storm-code-honor",date:"2025-11",cover:"NeX Pearl",ct:"Pearl",finish:"2000 Abralon",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  {id:78,brand:"Motiv",bS:"motiv",name:"King Venom",slug:"king-venom",img:"motiv-king-venom",date:"2025-11",cover:"Propulsion MXV Hybrid",ct:"Hybrid",finish:"2000 LSP",core:"Sigma",cT:"Symmetric",rg:2.470,diff:0.047,mb:null},
+  // ── Oct 2025 ─────────────────────────────────────────────
+  {id:79,brand:"Roto Grip",bS:"roto-grip",name:"Wild Wrecker",slug:"wild-wrecker",img:"roto-grip-wild-wrecker",date:"2025-10",cover:"eTrax Plus Solid",ct:"Solid",finish:"2000 Abralon",core:"Wrecker A.I.",cT:"Symmetric",rg:2.540,diff:0.045,mb:null},
+  {id:80,brand:"Roto Grip",bS:"roto-grip",name:"Rockstar Amped",slug:"rockstar-amped",img:"roto-grip-rockstar-amped",date:"2025-10",cover:"NanoStar Pearl",ct:"Pearl",finish:"Power Edge",core:"Rocker A.I.",cT:"Symmetric",rg:2.480,diff:0.050,mb:null},
+  {id:81,brand:"Ebonite",bS:"ebonite",name:"Mission Reload",slug:"mission-reload-redblackwhite",img:"ebonite-mission-reload",date:"2025-10",cover:"HK22C - FX14 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Mission",cT:"Asymmetric",rg:2.528,diff:0.054,mb:0.017},
+  {id:82,brand:"Brunswick",bS:"brunswick",name:"Alert",slug:"alert",img:"brunswick-alert",date:"2025-10",cover:"HK22 - Savvy Hook Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Alert",cT:"Symmetric",rg:2.478,diff:0.037,mb:null},
+  {id:83,brand:"Brunswick",bS:"brunswick",name:"Energize",slug:"energize",img:"brunswick-energize",date:"2025-10",cover:"HK22C - EVO Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Zone Asymmetric",cT:"Asymmetric",rg:2.478,diff:0.048,mb:0.017},
+  {id:84,brand:"Columbia 300",bS:"columbia-300",name:"Ricochet Return",slug:"ricochet-return",img:"columbia-300-ricochet-return",date:"2025-10",cover:"HK22C - Micro Flex Hybrid",ct:"Hybrid",finish:"500 Siaair + Polish",core:"Ricochet",cT:"Symmetric",rg:2.488,diff:0.054,mb:null},
+  {id:85,brand:"Radical",bS:"radical",name:"Intel Recon",slug:"intel-recon",img:"radical-intel-recon",date:"2025-10",cover:"HK22 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Modified Intel",cT:"Symmetric",rg:2.483,diff:0.032,mb:null},
+  {id:86,brand:"Radical",bS:"radical",name:"Evil Eye",slug:"evil-eye",img:"radical-evil-eye",date:"2025-10",cover:"HK22C Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"Evil Eye",cT:"Symmetric",rg:2.495,diff:0.046,mb:null},
+  {id:87,brand:"Track",bS:"track",name:"Criterion Inverse",slug:"criterion-inverse",img:"track-criterion-inverse",date:"2025-10",cover:"HK22C - Super Response Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Criterion I.D.",cT:"Asymmetric",rg:2.496,diff:0.047,mb:0.016},
+  {id:88,brand:"Motiv",bS:"motiv",name:"Shadow Tank",slug:"shadow-tank",img:"motiv-shadow-tank",date:"2025-10",cover:"Frixion M7 Pearl MCP",ct:"MCP",finish:"1000 LSS",core:"Flux",cT:"Symmetric",rg:2.570,diff:0.015,mb:null},
+  {id:89,brand:"Motiv",bS:"motiv",name:"Raptor Reign",slug:"raptor-reign",img:"motiv-raptor-reign",date:"2025-10",cover:"Leverage MXV Solid",ct:"Solid",finish:"2000 LSS",core:"Affliction V2",cT:"Symmetric",rg:2.480,diff:0.055,mb:null},
+  {id:90,brand:"Storm",bS:"storm",name:"Equinox Solid",slug:"equinox-solid",img:"storm-equinox-solid",date:"2025-10",cover:"A2S Solid",ct:"Solid",finish:"2000 Abralon",core:"Solarion A.I.",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:91,brand:"Storm",bS:"storm",name:"Star Road",slug:"star-road",img:"storm-star-road",date:"2025-10",cover:"NRG Solid",ct:"Solid",finish:"1500 Polished",core:"Inverted Fe2",cT:"Symmetric",rg:2.570,diff:0.046,mb:null},
+  {id:92,brand:"Hammer",bS:"hammer",name:"Extreme Envy Hybrid",slug:"extreme-envy-hybrid",img:"hammer-extreme-envy-hybrid",date:"2025-10",cover:"HK22C - Cohesion Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Launcher LRG",cT:"Asymmetric",rg:2.479,diff:0.054,mb:0.022},
+  {id:93,brand:"Roto Grip",bS:"roto-grip",name:"Optimum Idol Solid",slug:"optimum-idol-solid",img:"roto-grip-optimum-idol-solid",date:"2025-10",cover:"XtremeTrax Solid",ct:"Solid",finish:"2000 Abralon",core:"Ikon + A.I.",cT:"Symmetric",rg:2.470,diff:0.056,mb:null},
+  // ── Sep 2025 (page 1) ────────────────────────────────────
+  {id:94,brand:"Hammer",bS:"hammer",name:"Effect Purple Pearl Urethane",slug:"effect-purple-pearl-urethane",img:"hammer-effect-purple-pearl-urethane",date:"2025-09",cover:"Urethane Pearl",ct:"Urethane",finish:"500/1000/2000 Siaair MP",core:"Huntsman",cT:"Asymmetric",rg:2.470,diff:0.050,mb:0.017},
+  {id:95,brand:"Hammer",bS:"hammer",name:"Effect Black Solid Urethane",slug:"effect-black-solid-urethane",img:"hammer-effect-black-solid-urethane",date:"2025-09",cover:"Hammer Solid Urethane",ct:"Urethane",finish:"500/1000 Siaair MP",core:"Huntsman",cT:"Asymmetric",rg:2.470,diff:0.050,mb:0.017},
+  {id:96,brand:"900 Global",bS:"900-global",name:"Reality Incursion",slug:"reality-incursion",img:"900-global-reality-incursion",date:"2025-09",cover:"Reserve Blend 902 Solid",ct:"Solid",finish:"Power Edge",core:"Disturbance AI",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.019},
+  {id:97,brand:"SWAG",bS:"swag",name:"Black Dragon Pearl",slug:"black-dragon-pearl",img:"swag-black-dragon-pearl",date:"2025-09",cover:"Scorch Pearl",ct:"Pearl",finish:"1500 Polished",core:"Dragon",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:98,brand:"SWAG",bS:"swag",name:"Judge Pearl",slug:"judge-pearl",img:"swag-judge-pearl",date:"2025-09",cover:"Witness Pearl",ct:"Pearl",finish:"1500 Polished",core:"Judge",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.019},
+  {id:99,brand:"Storm",bS:"storm",name:"Marvel Maxx Silver",slug:"marvel-maxx-silver",img:"storm-marvel-maxx-silver",date:"2025-09",cover:"XT Shine Pearl",ct:"Pearl",finish:"Power Edge",core:"Centripetal A.I.",cT:"Symmetric",rg:2.470,diff:0.053,mb:null},
+  {id:100,brand:"DV8",bS:"dv8",name:"Mantra Solid",slug:"mantra-solid",img:"dv8-mantra-solid",date:"2025-09",cover:"Inciter Xtreme Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Mantra",cT:"Asymmetric",rg:2.498,diff:0.047,mb:0.011},
+  {id:101,brand:"Ebonite",bS:"ebonite",name:"The One Ovation",slug:"the-one-ovation",img:"ebonite-the-one-ovation",date:"2025-09",cover:"HK22C - GB 15.1 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Centrex Sym. MB",cT:"Asymmetric",rg:2.466,diff:0.056,mb:0.027},
+  {id:102,brand:"Hammer",bS:"hammer",name:"Black Widow Tour V1",slug:"black-widow-tour-v1",img:"hammer-black-widow-tour-v1",date:"2025-09",cover:"HK22 - Aggression Hybrid",ct:"Hybrid",finish:"500/1000/3000 Siaair MP",core:"Gas Mask Low Diff",cT:"Asymmetric",rg:2.500,diff:0.034,mb:0.016},
+  {id:103,brand:"Hammer",bS:"hammer",name:"Maximum Effect",slug:"maximum-effect",img:"hammer-maximum-effect",date:"2025-09",cover:"HK22C - Cohesion Hybrid CFI",ct:"Hybrid",finish:"500/1500 Siaair MP",core:"Huntsman",cT:"Asymmetric",rg:2.470,diff:0.050,mb:0.017},
+  {id:104,brand:"Motiv",bS:"motiv",name:"Primal Ghost",slug:"primal-ghost",img:"motiv-primal-ghost",date:"2025-09",cover:"Coercion HFS Solid",ct:"Solid",finish:"3000 LSS",core:"Impulse V2",cT:"Symmetric",rg:2.550,diff:0.050,mb:null},
+  {id:105,brand:"Brunswick",bS:"brunswick",name:"Vapor Zone Red",slug:"vapor-zone-red",img:"brunswick-vapor-zone-red",date:"2025-09",cover:"HK22C - EVO Pearl 2.0",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Zone Asymmetric",cT:"Asymmetric",rg:2.478,diff:0.048,mb:0.017},
+  {id:106,brand:"Brunswick",bS:"brunswick",name:"Melee Jab Void Black",slug:"melee-jab-void-black",img:"brunswick-melee-jab-void-black",date:"2025-09",cover:"HK22 - HK22+ Savvy Hook 5.0 Pearl",ct:"Pearl",finish:"500/1000 Siaair + Compound",core:"Melee Low RG",cT:"Symmetric",rg:2.487,diff:0.050,mb:null},
+  {id:107,brand:"Storm",bS:"storm",name:"Absolute Paint the Lanes Pink",slug:"absolute-paint-the-lanes-pink",img:"storm-absolute-paint-the-lanes-pink",date:"2025-09",cover:"R2S Pearl",ct:"Pearl",finish:"Power Edge",core:"Sentinel",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.021},
+  {id:108,brand:"SWAG",bS:"swag",name:"Dynamite War",slug:"dynamite-war",img:"swag-dynamite-war",date:"2025-09",cover:"USY 3 Pearl",ct:"Pearl",finish:"2000 Abralon",core:"Turbine Version 2",cT:"Symmetric",rg:2.496,diff:0.052,mb:null},
+  {id:109,brand:"Roto Grip",bS:"roto-grip",name:"Gem Blue Sapphire",slug:"gem-blue-sapphire",img:"roto-grip-gem-blue-sapphire",date:"2025-09",cover:"Hyper Response Pearl",ct:"Pearl",finish:"2000 Abralon",core:"Defiant LRG",cT:"Asymmetric",rg:2.470,diff:0.053,mb:0.016},
+  {id:110,brand:"Storm",bS:"storm",name:"PhysiX Raze",slug:"physix-raze",img:"storm-physix-raze",date:"2025-09",cover:"XT-II Solid",ct:"Solid",finish:"Power Edge",core:"Atomic A.I.",cT:"Asymmetric",rg:2.470,diff:0.055,mb:0.018},
+  {id:111,brand:"Roto Grip",bS:"roto-grip",name:"Attention Edge",slug:"attention-edge",img:"roto-grip-attention-edge",date:"2025-09",cover:"NanoStar Solid",ct:"Solid",finish:"2000 Abralon",core:"Momentous AV + A.I.",cT:"Asymmetric",rg:2.480,diff:0.049,mb:0.017},
+  {id:112,brand:"SWAG",bS:"swag",name:"Fusion Hybrid",slug:"fusion-hybrid",img:"swag-fusion-hybrid",date:"2025-09",cover:"Xplode Hybrid",ct:"Hybrid",finish:"4000 Abralon",core:"Fusion",cT:"Symmetric",rg:2.540,diff:0.036,mb:null},
+  {id:113,brand:"Brunswick",bS:"brunswick",name:"Onyx Soul Nirvana",slug:"onyx-soul-nirvana",img:"brunswick-onyx-soul-nirvana",date:"2025-08",cover:"HK22C - ECS Hook Solid Ultra 2.0",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"New Nirvana Ultra Low RG 4.0+",cT:"Asymmetric",rg:2.477,diff:0.054,mb:0.013},
+  {id:114,brand:"Storm",bS:"storm",name:"Lock-On",slug:"lock-on",img:"storm-lock-on",date:"2025-08",cover:"RX Pearl",ct:"Pearl",finish:"Power Edge",core:"RAD-X",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:115,brand:"Roto Grip",bS:"roto-grip",name:"Hyped Super Pearl II",slug:"hyped-super-pearl-ii",img:"roto-grip-hyped-super-pearl-ii",date:"2025-08",cover:"VTC Pearl",ct:"Pearl",finish:"1500 Polished",core:"Hyped",cT:"Symmetric",rg:2.520,diff:0.036,mb:null},
+  {id:116,brand:"Brunswick",bS:"brunswick",name:"Combat",slug:"combat",img:"brunswick-combat",date:"2025-08",cover:"HK22C - Alpha Premier Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Rampart",cT:"Asymmetric",rg:2.502,diff:0.051,mb:0.019},
+  {id:117,brand:"Brunswick",bS:"brunswick",name:"Infinity Quest",slug:"infinity-quest",img:"brunswick-infinity-quest",date:"2025-08",cover:"HK22C - EVO Solid",ct:"Solid",finish:"500/1000/1500 Siaair + Compound",core:"Infinity",cT:"Asymmetric",rg:2.521,diff:0.051,mb:0.010},
+  {id:118,brand:"Columbia 300",bS:"columbia-300",name:"Pulse",slug:"pulse",img:"columbia-300-pulse",date:"2025-08",cover:"HK22 - Hyperflex",ct:"Solid",finish:"500/1500 Siaair MP",core:"Pulse PowerCOR",cT:"Symmetric",rg:2.468,diff:0.045,mb:null},
+  {id:119,brand:"Radical",bS:"radical",name:"Guru Oracle",slug:"guru-oracle",img:"radical-guru-oracle",date:"2025-08",cover:"HK22C Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Guru",cT:"Asymmetric",rg:2.503,diff:0.044,mb:0.018},
+  {id:120,brand:"Radical",bS:"radical",name:"Snapshot Hybrid",slug:"snapshot-hybrid",img:"radical-snapshot-hybrid",date:"2025-08",cover:"HK22C+ Hybrid",ct:"Hybrid",finish:"500/3000 Siaair MP",core:"Snapshot",cT:"Symmetric",rg:2.523,diff:0.050,mb:null},
+  {id:121,brand:"Track",bS:"track",name:"Theorem Solid",slug:"theorem-solid",img:"track-theorem-solid",date:"2025-08",cover:"HK22C - Super Response Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"MC2",cT:"Asymmetric",rg:2.473,diff:0.046,mb:0.017},
+  {id:122,brand:"Motiv",bS:"motiv",name:"Steel Forge",slug:"steel-forge",img:"motiv-steel-forge",date:"2025-08",cover:"Propulsion MXV Pearl",ct:"Pearl",finish:"5000 LSS",core:"Detonator",cT:"Symmetric",rg:2.470,diff:0.055,mb:null},
+  {id:123,brand:"SWAG",bS:"swag",name:"APEX Pearl",slug:"apex-pearl",img:"swag-apex-pearl",date:"2025-08",cover:"APEX Pearl",ct:"Pearl",finish:"1500 Polished",core:"APX V1",cT:"Symmetric",rg:2.500,diff:0.042,mb:null},
+  {id:124,brand:"SWAG",bS:"swag",name:"APEX Solid",slug:"apex-solid",img:"swag-apex-solid",date:"2025-08",cover:"APEX Solid",ct:"Solid",finish:"3000 Abralon",core:"APX V1",cT:"Symmetric",rg:2.500,diff:0.042,mb:null},
+  {id:125,brand:"SWAG",bS:"swag",name:"Craze Hybrid",slug:"craze-hybrid",img:"swag-craze-hybrid",date:"2025-08",cover:"Rage Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Craze",cT:"Symmetric",rg:2.520,diff:0.030,mb:null},
+  {id:126,brand:"Ebonite",bS:"ebonite",name:"Mission Possible",slug:"mission-possible",img:"ebonite-mission-possible",date:"2025-08",cover:"HK22C - FX13 Solid",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Mission",cT:"Asymmetric",rg:2.528,diff:0.054,mb:0.017},
+  {id:127,brand:"Ebonite",bS:"ebonite",name:"Thunderbolt Urethane",slug:"thunderbolt-urethane",img:"ebonite-thunderbolt-urethane",date:"2025-07",cover:"Solid Urethane 78D",ct:"Urethane",finish:"500/1000 Siaair MP",core:"Thunder Bolt",cT:"Symmetric",rg:2.484,diff:0.046,mb:null},
+  {id:128,brand:"Ebonite",bS:"ebonite",name:"Pivot Black Ice",slug:"pivot-black-ice",img:"ebonite-pivot-black-ice",date:"2025-07",cover:"HK22C - XL3500 Plus Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair MP",core:"VIF 2.0",cT:"Asymmetric",rg:2.481,diff:0.050,mb:0.017},
+  {id:129,brand:"Roto Grip",bS:"roto-grip",name:"Gremlin",slug:"gremlin",img:"roto-grip-gremlin",date:"2025-07",cover:"V-R1 Pearl",ct:"Pearl",finish:"Power Edge",core:"Rondure MaxD",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.010},
+  {id:130,brand:"900 Global",bS:"900-global",name:"Ember",slug:"ember",img:"900-global-ember",date:"2025-07",cover:"Reserve Blend 82 Pearl",ct:"Pearl",finish:"Power Edge",core:"Magna A.I.",cT:"Symmetric",rg:2.490,diff:0.044,mb:null},
+  {id:131,brand:"900 Global",bS:"900-global",name:"Cove",slug:"cove",img:"900-global-cove",date:"2025-07",cover:"Reserve Blend 85 Hybrid",ct:"Hybrid",finish:"4000 Abralon",core:"Magna A.I.",cT:"Symmetric",rg:2.490,diff:0.044,mb:null},
+  {id:132,brand:"Hammer",bS:"hammer",name:"Black Widow Mania Hybrid",slug:"black-widow-mania-hybrid",img:"hammer-black-widow-mania-hybrid",date:"2025-07",cover:"HK22C - Cohesion Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:133,brand:"900 Global",bS:"900-global",name:"Mach Cruise",slug:"mach-cruise",img:"900-global-mach-cruise",date:"2025-07",cover:"Reserve Blend 93 Solid",ct:"Solid",finish:"Power Edge",core:"Ellipticon A.I.",cT:"Asymmetric",rg:2.480,diff:0.056,mb:0.030},
+  {id:134,brand:"DV8",bS:"dv8",name:"Severe Collision",slug:"severe-collision",img:"dv8-severe-collision",date:"2025-07",cover:"HK22C - Havoc Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Collision",cT:"Asymmetric",rg:2.462,diff:0.052,mb:0.019},
+  {id:135,brand:"Ebonite",bS:"ebonite",name:"Entity",slug:"entity",img:"ebonite-entity",date:"2025-07",cover:"HK22C - Optimize Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Entity",cT:"Asymmetric",rg:2.515,diff:0.052,mb:0.020},
+  {id:136,brand:"Hammer",bS:"hammer",name:"Anger Solid",slug:"anger-solid",img:"hammer-anger-solid",date:"2025-07",cover:"Semtex Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Modified Infamous",cT:"Symmetric",rg:2.567,diff:0.049,mb:null},
+  {id:137,brand:"Hammer",bS:"hammer",name:"Bubblegum Vibe",slug:"bubblegum-vibe",img:"hammer-bubblegum-vibe",date:"2025-07",cover:"HK22 - CT Max Pearl",ct:"Pearl",finish:"500/1000/2000 Siaair + Compound",core:"Vibe",cT:"Symmetric",rg:2.510,diff:0.042,mb:null},
+  {id:138,brand:"Motiv",bS:"motiv",name:"Supra Clutch",slug:"supra-clutch",img:"motiv-supra-clutch",date:"2025-07",cover:"Propulsion XRT Hybrid",ct:"Hybrid",finish:"5500 LSP",core:"Quadfire",cT:"Symmetric",rg:2.550,diff:0.043,mb:null},
+  {id:139,brand:"Pyramid",bS:"pyramid",name:"Prime Pearl",slug:"prime-pearl",img:"pyramid-prime-pearl",date:"2025-07",cover:"GPS Navigational Pearl ATX-XX",ct:"Pearl",finish:"2000 Abralon + Polish",core:"Fractal Torus",cT:"Asymmetric",rg:2.547,diff:0.050,mb:0.018},
+  {id:140,brand:"Storm",bS:"storm",name:"Motor 30",slug:"motor-30",img:"storm-motor-30",date:"2025-07",cover:"RX Solid",ct:"Solid",finish:"Xtra Shine",core:"Torque A.I.",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.017},
+  {id:141,brand:"900 Global",bS:"900-global",name:"Honey Badger Black Edition",slug:"honey-badger-black-edition",img:"900-global-honey-badger-black-edition",date:"2025-07",cover:"Reserve Blend 70E Hybrid",ct:"Hybrid",finish:"Power Edge",core:"Grapnel 2.0 A.I.",cT:"Asymmetric",rg:2.530,diff:0.050,mb:0.013},
+  {id:142,brand:"Storm",bS:"storm",name:"IDentity B-C-P",slug:"identity-b-c-p",img:"storm-identity-b-c-p",date:"2025-07",cover:"ReX Pearl",ct:"Pearl",finish:"Power Edge",core:"ID A.I.",cT:"Asymmetric",rg:2.510,diff:0.055,mb:0.011},
+  {id:143,brand:"Storm",bS:"storm",name:"!Q Spear",slug:"iq-spear",img:"storm-iq-spear",date:"2025-06",cover:"R2S Pearl",ct:"Pearl",finish:"1500 Polished",core:"C3 A.I.",cT:"Symmetric",rg:2.480,diff:0.031,mb:null},
+  {id:144,brand:"Hammer",bS:"hammer",name:"Black Widow Night Breaker Hybrid",slug:"black-widow-night-breaker-hybrid",img:"hammer-black-widow-night-breaker-hybrid",date:"2025-06",cover:"HK22C - Semtex Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:145,brand:"Ebonite",bS:"ebonite",name:"The One Vector",slug:"the-one-vector",img:"ebonite-the-one-vector",date:"2025-06",cover:"HK22C - GB 14.4 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair MP",core:"Centrex Sym. MB",cT:"Asymmetric",rg:2.466,diff:0.056,mb:0.027},
+  {id:146,brand:"Storm",bS:"storm",name:"Ion Pro Solid",slug:"ion-pro-solid",img:"storm-ion-pro-solid",date:"2025-06",cover:"TX-16 Solid",ct:"Solid",finish:"Power Edge",core:"Element Tour A.I.",cT:"Asymmetric",rg:2.470,diff:0.035,mb:0.014},
+  {id:147,brand:"Storm",bS:"storm",name:"Hy-Road 40",slug:"hy-road-40",img:"storm-hy-road-40",date:"2025-06",cover:"A1S Pearl",ct:"Pearl",finish:"Power Edge",core:"Inverted Fe2",cT:"Symmetric",rg:2.570,diff:0.046,mb:null},
+  {id:148,brand:"Ebonite",bS:"ebonite",name:"Flare Angular One",slug:"flare-angular-one",img:"ebonite-flare-angular-one",date:"2025-06",cover:"HK22C - XL8900 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Iron",cT:"Asymmetric",rg:2.463,diff:0.053,mb:0.019},
+  {id:149,brand:"Storm",bS:"storm",name:"Ice 30",slug:"ice-30-various-colors",img:"storm-ice-30-snow-white",date:"2025-06",cover:"Polyester",ct:"Polyester",finish:"3500 Polished",core:"Storm Traditional 3-piece",cT:"Symmetric",rg:2.690,diff:0.006,mb:null},
+  {id:150,brand:"Storm",bS:"storm",name:"PhysiX Era",slug:"physix-era",img:"storm-physix-era",date:"2025-06",cover:"TX-16 Pearl",ct:"Pearl",finish:"Power Edge",core:"Atomic A.I.",cT:"Asymmetric",rg:2.470,diff:0.055,mb:0.018},
+  {id:151,brand:"Brunswick",bS:"brunswick",name:"Ethos Solid",slug:"ethos-solid",img:"brunswick-ethos-solid",date:"2025-06",cover:"Savvy Hook 4.0 Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Ethos",cT:"Symmetric",rg:2.481,diff:0.053,mb:null},
+  {id:152,brand:"Columbia 300",bS:"columbia-300",name:"Super Cuda PowerCOR Pearl",slug:"super-cuda-powercor-pearl",img:"columbia-300-super-cuda-powercor-pearl",date:"2025-06",cover:"HK22C - Formula 1 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Cuda PowerCOR",cT:"Symmetric",rg:2.501,diff:0.047,mb:null},
+  {id:153,brand:"Radical",bS:"radical",name:"No Doubt Solid",slug:"no-doubt-solid",img:"radical-no-doubt-solid",date:"2025-06",cover:"HK22C+ Solid",ct:"Solid",finish:"500/1000/1500 Siaair + Compound",core:"No Doubt",cT:"Symmetric",rg:2.485,diff:0.051,mb:null},
+  {id:154,brand:"Radical",bS:"radical",name:"Power Hitter",slug:"power-hitter",img:"radical-power-hitter",date:"2025-06",cover:"HK22C - Textured Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Hitter",cT:"Asymmetric",rg:2.488,diff:0.053,mb:0.015},
+  {id:155,brand:"Track",bS:"track",name:"Paragon Shadow",slug:"paragon-shadow",img:"track-paragon-shadow",date:"2025-06",cover:"HK22C - QR-12 Hybrid",ct:"Hybrid",finish:"500/1500 Siaair MP",core:"I-Core 3.0",cT:"Asymmetric",rg:2.486,diff:0.056,mb:0.015},
+  {id:156,brand:"Motiv",bS:"motiv",name:"Jackal ExJ",slug:"jackal-exj",img:"motiv-jackal-exj",date:"2025-06",cover:"Propulsion HVH Hybrid",ct:"Hybrid",finish:"4000 LSS",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:157,brand:"Roto Grip",bS:"roto-grip",name:"Hustle Teal/Black",slug:"hustle-tealblack",img:"roto-grip-hustle-tealblack",date:"2025-06",cover:"VTC Pearl",ct:"Pearl",finish:"Xtra Shine",core:"Hustle",cT:"Symmetric",rg:2.530,diff:0.030,mb:null},
+  {id:158,brand:"Storm",bS:"storm",name:"Summit World",slug:"summit-world",img:"storm-summit-world",date:"2025-06",cover:"NeX+ Solid",ct:"Solid",finish:"2000 Abralon",core:"Centripetal HD A.I.",cT:"Symmetric",rg:2.460,diff:0.056,mb:null},
+  {id:159,brand:"Roto Grip",bS:"roto-grip",name:"Exit Red",slug:"exit-red",img:"roto-grip-exit-red",date:"2025-06",cover:"Hyper Response Solid",ct:"Solid",finish:"2000 Abralon",core:"Defense A.I.",cT:"Symmetric",rg:2.490,diff:0.053,mb:0.024},
+  {id:160,brand:"Brunswick",bS:"brunswick",name:"Attitude Control Black",slug:"attitude-control-black",img:"brunswick-attitude-control-black",date:"2025-06",cover:"Urethane Pearl Plus+",ct:"Urethane",finish:"500/1000 Siaair MP",core:"Contra",cT:"Symmetric",rg:2.474,diff:0.047,mb:null},
+  {id:161,brand:"Roto Grip",bS:"roto-grip",name:"Ultimate Wrecker",slug:"ultimate-wrecker",img:"roto-grip-ultimate-wrecker",date:"2025-05",cover:"PURE-Response Hybrid",ct:"Hybrid",finish:"Power Edge",core:"Wrecker A.I.",cT:"Symmetric",rg:2.540,diff:0.045,mb:null},
+  {id:162,brand:"Roto Grip",bS:"roto-grip",name:"Hustle Earth",slug:"hustle-earth",img:"roto-grip-hustle-earth",date:"2025-05",cover:"VTC Solid",ct:"Solid",finish:"2000 Abralon",core:"Hustle",cT:"Symmetric",rg:2.530,diff:0.030,mb:null},
+  {id:163,brand:"900 Global",bS:"900-global",name:"Origin EX",slug:"origin-ex",img:"900-global-origin-ex",date:"2025-05",cover:"Reserve Blend 89 Solid",ct:"Solid",finish:"2000 Abralon",core:"Ellipse A.I.",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.020},
+  {id:164,brand:"DV8",bS:"dv8",name:"Hater Pearl",slug:"hater-pearl",img:"dv8-hater-pearl",date:"2025-05",cover:"HK22C - Havoc Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Hater",cT:"Asymmetric",rg:2.539,diff:0.054,mb:0.024},
+  {id:165,brand:"Ebonite",bS:"ebonite",name:"Turbo X",slug:"turbo-x",img:"ebonite-turbo-x",date:"2025-05",cover:"HK22 - GB 10.7 Solid",ct:"Solid",finish:"500/1000/1500 Siaair + Compound",core:"Turbo (2025+)",cT:"Symmetric",rg:2.517,diff:0.040,mb:null},
+  {id:166,brand:"Hammer",bS:"hammer",name:"Hazmat Pearl",slug:"hazmat-pearl",img:"hammer-hazmat-pearl",date:"2025-05",cover:"HK22 - Semtex Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Hazmat",cT:"Symmetric",rg:2.479,diff:0.055,mb:null},
+  {id:167,brand:"Motiv",bS:"motiv",name:"Rising Venom",slug:"rising-venom",img:"motiv-rising-venom",date:"2025-05",cover:"Turmoil MFS Solid",ct:"Solid",finish:"4000 LSS",core:"Gear APG",cT:"Asymmetric",rg:2.470,diff:0.036,mb:0.013},
+  {id:168,brand:"Storm",bS:"storm",name:"Code Impact",slug:"code-impact",img:"storm-code-impact",date:"2025-05",cover:"XT Shine Pearl",ct:"Pearl",finish:"Xtra Shine",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  {id:169,brand:"Brunswick",bS:"brunswick",name:"Vaporize S.E.",slug:"vaporize-se",img:"brunswick-vaporize-se",date:"2025-05",cover:"HK22C - EVO Pearl Plus+",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Zone Asymmetric",cT:"Asymmetric",rg:2.478,diff:0.048,mb:0.017},
+  {id:170,brand:"Storm",bS:"storm",name:"Blue !Q",slug:"blue-iq",img:"storm-blue-iq",date:"2025-05",cover:"R2X Nano Pearl",ct:"Pearl",finish:"1500 Polished",core:"C3 A.I.",cT:"Symmetric",rg:2.480,diff:0.031,mb:null},
+  {id:171,brand:"Hammer",bS:"hammer",name:"Black Widow Mania Solid",slug:"black-widow-mania-solid",img:"hammer-black-widow-mania-solid",date:"2025-05",cover:"HK22C - Cohesion Solid",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:172,brand:"Storm",bS:"storm",name:"Typhoon",slug:"typhoon",img:"storm-typhoon",date:"2025-04",cover:"Reactor Pearl",ct:"Pearl",finish:"Power Edge",core:"Atmos A.I.",cT:"Symmetric",rg:2.530,diff:0.042,mb:null},
+  {id:173,brand:"Storm",bS:"storm",name:"Blaze DNA",slug:"blaze-dna",img:"storm-blaze-dna",date:"2025-04",cover:"NRG 2 Solid",ct:"Solid",finish:"2000 Abralon",core:"Supercoil",cT:"Asymmetric",rg:2.470,diff:0.053,mb:0.023},
+  {id:174,brand:"Brunswick",bS:"brunswick",name:"Crown Victory",slug:"crown-victory",img:"brunswick-crown-victory",date:"2025-04",cover:"HK22 - Savvy Hook Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Tiered Hexagon",cT:"Symmetric",rg:2.540,diff:0.045,mb:null},
+  {id:175,brand:"Columbia 300",bS:"columbia-300",name:"Rally",slug:"rally",img:"columbia-300-rally",date:"2025-04",cover:"HK22C - Formula 1 Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Shifter",cT:"Asymmetric",rg:2.478,diff:0.050,mb:0.015},
+  {id:176,brand:"Track",bS:"track",name:"Cypher Pearl",slug:"cypher-pearl",img:"track-cypher-pearl",date:"2025-04",cover:"HK22 - Prime Response Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Synergy",cT:"Symmetric",rg:2.540,diff:0.047,mb:null},
+  {id:177,brand:"Roto Grip",bS:"roto-grip",name:"X-Cell Master",slug:"x-cell-master",img:"roto-grip-x-cell-master",date:"2025-04",cover:"Hyper X Pearl",ct:"Pearl",finish:"3000 Abralon",core:"Nucleus + A.I.",cT:"Asymmetric",rg:2.500,diff:0.056,mb:0.019},
+  {id:178,brand:"Storm",bS:"storm",name:"Marvel Flame",slug:"marvel-flame",img:"storm-marvel-flame",date:"2025-04",cover:"NeX Pearl",ct:"Pearl",finish:"Power Edge",core:"Centripetal A.I.",cT:"Symmetric",rg:2.470,diff:0.053,mb:null},
+  {id:179,brand:"Roto Grip",bS:"roto-grip",name:"Attention Power",slug:"attention-power",img:"roto-grip-attention-power",date:"2025-04",cover:"MicroTrax Plus Solid",ct:"Solid",finish:"2000 Abralon",core:"Momentous AV + A.I.",cT:"Asymmetric",rg:2.480,diff:0.049,mb:0.017},
+  {id:180,brand:"Storm",bS:"storm",name:"Grand Gate",slug:"grand-gate",img:"storm-grand-gate",date:"2025-04",cover:"A1S Pearl",ct:"Pearl",finish:"1500 Polished",core:"Ignition",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.019},
+  {id:181,brand:"Storm",bS:"storm",name:"!Q Tour A.I.",slug:"iq-tour-ai",img:"storm-iq-tour-ai",date:"2025-03",cover:"R2S Hybrid",ct:"Hybrid",finish:"Power Edge",core:"C3 A.I.",cT:"Symmetric",rg:2.480,diff:0.031,mb:null},
+  {id:182,brand:"DV8",bS:"dv8",name:"Dark Side",slug:"dark-side",img:"dv8-dark-side",date:"2025-03",cover:"Inciter Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Duality",cT:"Symmetric",rg:2.480,diff:0.036,mb:null},
+  {id:183,brand:"Ebonite",bS:"ebonite",name:"Game Breaker 5 Pearl",slug:"game-breaker-5-pearl",img:"ebonite-game-breaker-5-pearl",date:"2025-03",cover:"HK22 - GB 12.7 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Enhanced V2",cT:"Symmetric",rg:2.480,diff:0.048,mb:null},
+  {id:184,brand:"Hammer",bS:"hammer",name:"Hammerhead",slug:"hammerhead",img:"hammer-hammerhead",date:"2025-03",cover:"Aggression Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Spheroid (2025)",cT:"Symmetric",rg:2.481,diff:0.048,mb:null},
+  {id:185,brand:"Hammer",bS:"hammer",name:"Raw Hammer Smoke/Blue/Gold",slug:"raw-hammer-smoke-blue-gold",img:"hammer-raw-hammer-smoke-blue-gold",date:"2025-03",cover:"Juiced Pearl",ct:"Pearl",finish:"500/1000/2000 Siaair + Compound",core:"Raw Hammer (2021)",cT:"Symmetric",rg:2.537,diff:0.038,mb:null},
+  // ── Feb 2025 ─────────────────────────────────────────────
+  {id:186,brand:"Storm",bS:"storm",name:"EquinoX",slug:"equinox",img:"storm-equinox",date:"2025-02",cover:"A1S Pearl",ct:"Pearl",finish:"Power Edge",core:"Solarion A.I.",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:187,brand:"900 Global",bS:"900-global",name:"Duty Majesty",slug:"duty-majesty",img:"900-global-duty-majesty",date:"2025-02",cover:"Reserve Blend 902 Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Foundation Gold A.I.",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.018},
+  {id:188,brand:"900 Global",bS:"900-global",name:"Honey Badger Blameless",slug:"honey-badger-blameless",img:"900-global-honey-badger-blameless",date:"2025-02",cover:"Reserve Blend 701 Pearl",ct:"Pearl",finish:"3000 Abralon",core:"Grapnel 2.0 A.I.",cT:"Asymmetric",rg:2.530,diff:0.050,mb:0.013},
+  {id:189,brand:"Storm",bS:"storm",name:"The Road X",slug:"the-road-x",img:"storm-the-road-x",date:"2025-02",cover:"NRG 3 Pearl",ct:"Pearl",finish:"1500 Polished",core:"Inverted Fe2 A.I.",cT:"Symmetric",rg:2.550,diff:0.045,mb:null},
+  {id:190,brand:"Roto Grip",bS:"roto-grip",name:"Exit",slug:"exit",img:"roto-grip-exit",date:"2025-02",cover:"Hyper Response II Pearl",ct:"Pearl",finish:"1500 Polished",core:"Defense A.I.",cT:"Symmetric",rg:2.490,diff:0.053,mb:0.024},
+  {id:191,brand:"Storm",bS:"storm",name:"IDentity",slug:"identity",img:"storm-identity",date:"2025-02",cover:"ReX Pearl",ct:"Pearl",finish:"Power Edge",core:"ID A.I.",cT:"Asymmetric",rg:2.510,diff:0.055,mb:0.011},
+  {id:192,brand:"Storm",bS:"storm",name:"Hyper Motor",slug:"hyper-motor",img:"storm-hyper-motor",date:"2025-01",cover:"XT Ultimate Solid",ct:"Solid",finish:"2000 Abralon",core:"Torque A.I.",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.017},
+  {id:193,brand:"SWAG",bS:"swag",name:"Unreal",slug:"unreal",img:"swag-unreal",date:"2025-01",cover:"Never Quit Solid",ct:"Solid",finish:"1500 Polished",core:"Unreal",cT:"Symmetric",rg:2.510,diff:0.047,mb:null},
+  {id:194,brand:"SWAG",bS:"swag",name:"Fusion",slug:"fusion",img:"swag-fusion",date:"2025-01",cover:"Xplode Solid",ct:"Solid",finish:"3000 Abralon",core:"Fusion",cT:"Symmetric",rg:2.540,diff:0.036,mb:null},
+  {id:195,brand:"SWAG",bS:"swag",name:"Black Dragon",slug:"black-dragon",img:"swag-black-dragon",date:"2025-01",cover:"Scorch Solid",ct:"Solid",finish:"1500 Abralon",core:"Dragon",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:196,brand:"SWAG",bS:"swag",name:"Judge",slug:"judge",img:"swag-judge",date:"2025-01",cover:"Witness Solid",ct:"Solid",finish:"2500 Sanded",core:"Judge",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.019},
+  {id:197,brand:"SWAG",bS:"swag",name:"Craze Solid",slug:"craze-solid",img:"swag-craze-solid",date:"2025-01",cover:"Rage Solid",ct:"Solid",finish:"3000 Abralon",core:"Craze",cT:"Symmetric",rg:2.520,diff:0.030,mb:null},
+  {id:198,brand:"SWAG",bS:"swag",name:"Craze Pearl",slug:"craze-pearl",img:"swag-craze-pearl",date:"2025-01",cover:"Rage Pearl",ct:"Pearl",finish:"1500 Polished",core:"Craze",cT:"Symmetric",rg:2.520,diff:0.030,mb:null},
+  {id:199,brand:"Roto Grip",bS:"roto-grip",name:"Gem Black Diamond",slug:"gem-black-diamond",img:"roto-grip-gem-black-diamond",date:"2025-01",cover:"Hyper X Pearl",ct:"Pearl",finish:"Power Edge",core:"Defiant LRG",cT:"Asymmetric",rg:2.470,diff:0.053,mb:0.016},
+  {id:200,brand:"900 Global",bS:"900-global",name:"Zen 25",slug:"zen-25",img:"900-global-zen-25",date:"2025-01",cover:"Reserve Blend 83 Pearl",ct:"Pearl",finish:"Power Edge",core:"Meditate A.I.",cT:"Symmetric",rg:2.480,diff:0.053,mb:null},
+  {id:201,brand:"Storm",bS:"storm",name:"Level",slug:"level",img:"storm-level",date:"2025-01",cover:"RPM Solid",ct:"Solid",finish:"1000 Abralon",core:"Equalizer A.I.",cT:"Symmetric",rg:2.590,diff:0.027,mb:null},
+  {id:202,brand:"Storm",bS:"storm",name:"Phaze Target",slug:"phaze-target",img:"storm-phaze-target",date:"2025-01",cover:"GI-24 Solid",ct:"Solid",finish:"2000 Abralon",core:"Velocity A.I.",cT:"Symmetric",rg:2.470,diff:0.053,mb:null},
+  {id:203,brand:"Ebonite",bS:"ebonite",name:"Extreme Angular One",slug:"extreme-angular-one",img:"ebonite-extreme-angular-one",date:"2025-01",cover:"HK22 - XL8700 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Iron",cT:"Asymmetric",rg:2.463,diff:0.053,mb:0.019},
+  {id:204,brand:"Ebonite",bS:"ebonite",name:"The One Deep Marine",slug:"the-one-deep-marine",img:"ebonite-the-one-deep-marine",date:"2025-01",cover:"HK22C - GB 10.7 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair Polish",core:"Centrex Sym. MB",cT:"Asymmetric",rg:2.466,diff:0.056,mb:0.027},
+  {id:205,brand:"Ebonite",bS:"ebonite",name:"The One Urethane 78D",slug:"the-one-urethane-78d",img:"ebonite-the-one-urethane-78d",date:"2025-01",cover:"Solid Urethane 78D",ct:"Urethane",finish:"500/1000 Siaair MP",core:"Centrex Sym. MB",cT:"Asymmetric",rg:2.466,diff:0.056,mb:0.027},
+  {id:206,brand:"DV8",bS:"dv8",name:"Trouble Maker Solid",slug:"trouble-maker-solid",img:"dv8-trouble-maker-solid",date:"2025-01",cover:"Havoc Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"Dualistic",cT:"Symmetric",rg:2.496,diff:0.045,mb:null},
+  {id:207,brand:"Ebonite",bS:"ebonite",name:"Crusher Hybrid",slug:"crusher-hybrid",img:"ebonite-crusher-hybrid",date:"2025-01",cover:"HK22C - Optimize Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Crusher",cT:"Asymmetric",rg:2.489,diff:0.056,mb:0.016},
+  {id:208,brand:"Hammer",bS:"hammer",name:"3-D Offset Assault",slug:"3-d-offset-assault",img:"hammer-3-d-offset-assault",date:"2025-01",cover:"HK22C - Cohesion Hybrid",ct:"Hybrid",finish:"500/1000/2000 Siaair MP",core:"High Rev Offset",cT:"Asymmetric",rg:2.489,diff:0.053,mb:0.008},
+  {id:209,brand:"Hammer",bS:"hammer",name:"Black Widow Mania",slug:"black-widow-mania",img:"hammer-black-widow-mania",date:"2025-01",cover:"HK22C - Cohesion Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:210,brand:"Radical",bS:"radical",name:"Outer Limits Solid",slug:"outer-limits-solid",img:"radical-outer-limits-solid",date:"2025-01",cover:"HK22 Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Outer Limits",cT:"Asymmetric",rg:2.499,diff:0.051,mb:0.014},
+  {id:211,brand:"Radical",bS:"radical",name:"Snapshot",slug:"snapshot",img:"radical-snapshot",date:"2025-01",cover:"HK22C+ Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Snapshot",cT:"Symmetric",rg:2.523,diff:0.050,mb:null},
+  {id:212,brand:"Storm",bS:"storm",name:"Summit Knight",slug:"summit-knight",img:"storm-summit-knight",date:"2025-01",cover:"NRG Pro Pearl",ct:"Pearl",finish:"1500 Polished",core:"Centripetal HD A.I.",cT:"Symmetric",rg:2.460,diff:0.056,mb:null},
+  {id:213,brand:"Motiv",bS:"motiv",name:"Jackal Onyx",slug:"jackal-onyx",img:"motiv-jackal-onyx",date:"2025-01",cover:"Leverage HXC Solid",ct:"Solid",finish:"1000 LSS",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:214,brand:"Pyramid",bS:"pyramid",name:"Power Moon",slug:"power-moon",img:"pyramid-power-moon",date:"2025-01",cover:"XF Gravitational Pearl",ct:"Pearl",finish:"2000 Abralon",core:"SG 19.5 Dual Density",cT:"Asymmetric",rg:2.480,diff:0.039,mb:0.012},
+  // ── Dec 2024 ─────────────────────────────────────────────
+  {id:215,brand:"Motiv",bS:"motiv",name:"Jackal Howl",slug:"jackal-howl",img:"motiv-jackal-howl",date:"2024-12",cover:"Coercion HFS Solid",ct:"Solid",finish:"3000 LSS",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:216,brand:"Hammer",bS:"hammer",name:"Effect Black",slug:"effect-black",img:"hammer-effect-black",date:"2024-12",cover:"HK22C - Cohesion Solid",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Huntsman",cT:"Asymmetric",rg:2.470,diff:0.050,mb:0.017},
+  {id:217,brand:"900 Global",bS:"900-global",name:"Honey Badger Ruddy",slug:"honey-badger-ruddy",img:"900-global-honey-badger-ruddy",date:"2024-12",cover:"Reserve Blend 701 Pearl",ct:"Pearl",finish:"1500 Polished",core:"Grapnel 2.0 A.I.",cT:"Asymmetric",rg:2.530,diff:0.050,mb:0.013},
+  {id:218,brand:"Roto Grip",bS:"roto-grip",name:"Optimum Idol Glow",slug:"optimum-idol-glow",img:"roto-grip-optimum-idol-glow",date:"2024-12",cover:"MicroTrax Pearl",ct:"Pearl",finish:"1500 Polished",core:"Ikon + A.I.",cT:"Symmetric",rg:2.470,diff:0.056,mb:null},
+  {id:219,brand:"Storm",bS:"storm",name:"Ghost Lock II",slug:"ghost-lock-ii",img:"storm-ghost-lock-ii",date:"2024-12",cover:"XT Solid",ct:"Solid",finish:"1500 Polished",core:"RAD-X",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:220,brand:"Storm",bS:"storm",name:"The Code II",slug:"the-code-ii",img:"storm-the-code-ii",date:"2024-12",cover:"XT Solid",ct:"Solid",finish:"1500 Polished",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  {id:221,brand:"Storm",bS:"storm",name:"PhysiX Blackout",slug:"physix-blackout",img:"storm-physix-blackout",date:"2024-12",cover:"NeX Pearl",ct:"Pearl",finish:"2000 Abralon",core:"Atomic A.I.",cT:"Asymmetric",rg:2.470,diff:0.055,mb:0.018},
+  {id:222,brand:"Storm",bS:"storm",name:"Smart Solution",slug:"smart-solution",img:"storm-smart-solution",date:"2024-11",cover:"NeX Solid",ct:"Solid",finish:"2000 Abralon",core:"RAD-A + A.I.",cT:"Asymmetric",rg:2.510,diff:0.053,mb:0.015},
+  {id:223,brand:"Pyramid",bS:"pyramid",name:"Fortress Endgame",slug:"fortress-endgame",img:"pyramid-fortress-endgame",date:"2024-11",cover:"GPS Navigational Solid ATX-XX",ct:"Solid",finish:"2000 Abralon",core:"SG 19.5 AI",cT:"Asymmetric",rg:2.473,diff:0.051,mb:0.023},
+  {id:224,brand:"Motiv",bS:"motiv",name:"Primal Rage Evolution",slug:"primal-rage-evolution",img:"motiv-primal-rage-evolution",date:"2024-11",cover:"Propulsion FYJ Pearl",ct:"Pearl",finish:"5500 LSP",core:"Impulse V2",cT:"Symmetric",rg:2.550,diff:0.050,mb:null},
+  {id:225,brand:"Storm",bS:"storm",name:"Road Warrior",slug:"road-warrior",img:"storm-road-warrior",date:"2024-11",cover:"R2S DEEP Pearl",ct:"Pearl",finish:"Power Edge",core:"Inverted Fe2 A.I.",cT:"Symmetric",rg:2.550,diff:0.045,mb:null},
+  {id:226,brand:"900 Global",bS:"900-global",name:"Origin",slug:"origin",img:"900-global-origin",date:"2024-11",cover:"Reserve Blend 93 Hybrid",ct:"Hybrid",finish:"Power Edge",core:"Ellipse A.I.",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.020},
+  {id:227,brand:"Roto Grip",bS:"roto-grip",name:"Attention Star S2",slug:"attention-star-s2",img:"roto-grip-attention-star-s2",date:"2024-11",cover:"eTrax Plus Hybrid",ct:"Hybrid",finish:"2000 Abralon",core:"Momentous AV + A.I.",cT:"Asymmetric",rg:2.480,diff:0.049,mb:0.017},
+  {id:228,brand:"Columbia 300",bS:"columbia-300",name:"Ricochet Pearl",slug:"ricochet-pearl",img:"columbia-300-ricochet-pearl",date:"2024-11",cover:"HK22C - Micro Flex Pearl",ct:"Pearl",finish:"500 Siaair + Polish",core:"Ricochet",cT:"Symmetric",rg:2.488,diff:0.054,mb:null},
+  {id:229,brand:"DV8",bS:"dv8",name:"Heckler",slug:"heckler",img:"dv8-heckler",date:"2024-11",cover:"HK22C - Maximum Havoc Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Unholy",cT:"Asymmetric",rg:2.504,diff:0.051,mb:0.010},
+  {id:230,brand:"Ebonite",bS:"ebonite",name:"Real Time",slug:"real-time",img:"ebonite-real-time",date:"2024-11",cover:"HK22 - GB 13.7 Solid",ct:"Solid",finish:"500/1000/1500 Siaair + Compound",core:"Big Time (2023 Update)",cT:"Symmetric",rg:2.508,diff:0.054,mb:null},
+  {id:231,brand:"Hammer",bS:"hammer",name:"Anger",slug:"anger",img:"hammer-anger",date:"2024-11",cover:"HK22 - CT Reactive Flip Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Modified Infamous",cT:"Symmetric",rg:2.567,diff:0.049,mb:null},
+  {id:232,brand:"Hammer",bS:"hammer",name:"Effect Tour",slug:"effect-tour",img:"hammer-effect-tour",date:"2024-11",cover:"TourV3 Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"Huntsman Tour",cT:"Asymmetric",rg:2.472,diff:0.036,mb:0.012},
+  {id:233,brand:"Track",bS:"track",name:"Theorem Pearl",slug:"theorem-pearl",img:"track-theorem-pearl",date:"2024-11",cover:"HK22 - Prime Response Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"MC2",cT:"Asymmetric",rg:2.473,diff:0.046,mb:0.017},
+  {id:234,brand:"Storm",bS:"storm",name:"PhysiX Power Elite IV",slug:"physix-power-elite-iv",img:"storm-physix-power-elite-iv",date:"2024-11",cover:"NeX Hybrid",ct:"Hybrid",finish:"Reacta Gloss",core:"Atomic",cT:"Asymmetric",rg:2.480,diff:0.053,mb:0.017},
+  {id:235,brand:"Storm",bS:"storm",name:"Marvel Pearl A.I.",slug:"marvel-pearl-ai",img:"storm-marvel-pearl-ai",date:"2024-11",cover:"NRG Pearl",ct:"Pearl",finish:"1500 Polished",core:"Centripetal A.I.",cT:"Symmetric",rg:2.470,diff:0.053,mb:null},
+  {id:236,brand:"Hammer",bS:"hammer",name:"Black Widow Nightmare",slug:"black-widow-nightmare",img:"hammer-black-widow-nightmare",date:"2024-11",cover:"HK22C - Cohesion Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:237,brand:"Brunswick",bS:"brunswick",name:"Melee Jab Lunatic Purple",slug:"melee-jab-lunatic-purple",img:"brunswick-melee-jab-lunatic-purple",date:"2024-11",cover:"HK22 - HK22+ Savvy Hook 4.0 Pearl",ct:"Pearl",finish:"500/1000 Siaair + Compound",core:"Melee Low RG",cT:"Symmetric",rg:2.487,diff:0.050,mb:null},
+  {id:238,brand:"Ebonite",bS:"ebonite",name:"Pivot Dark",slug:"pivot-dark",img:"ebonite-pivot-dark",date:"2024-10",cover:"HK22 - XL3500 Solid",ct:"Solid",finish:"500/1000/2000 Abralon",core:"VIF 2.0",cT:"Asymmetric",rg:2.481,diff:0.050,mb:0.017},
+  {id:239,brand:"Track",bS:"track",name:"Archetype Rose/Sea",slug:"archetype-rosesea",img:"track-archetype-rosesea",date:"2024-10",cover:"HK22C - QR-13 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"I-Core 3.0 Slim",cT:"Asymmetric",rg:2.518,diff:0.053,mb:0.020},
+  {id:240,brand:"Storm",bS:"storm",name:"Star Gate",slug:"star-gate",img:"storm-star-gate",date:"2024-10",cover:"NRG 2 Pearl",ct:"Pearl",finish:"1500 Polished",core:"Ignition",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.019},
+  {id:241,brand:"Brunswick",bS:"brunswick",name:"Ethos Hybrid",slug:"ethos-hybrid",img:"brunswick-ethos-hybrid",date:"2024-10",cover:"HK22C - Savvy Hook 4.0 Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Ethos",cT:"Symmetric",rg:2.481,diff:0.053,mb:null},
+  {id:242,brand:"Radical",bS:"radical",name:"No Doubt",slug:"no-doubt",img:"radical-no-doubt",date:"2024-10",cover:"HK22 - HK22+ Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"No Doubt",cT:"Symmetric",rg:2.485,diff:0.051,mb:null},
+  {id:243,brand:"Radical",bS:"radical",name:"ZigZag Solid",slug:"zigzag-solid",img:"radical-zigzag-solid",date:"2024-10",cover:"HK22 - Hyperkinetic Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"ZigZag",cT:"Asymmetric",rg:2.501,diff:0.045,mb:0.015},
+  {id:244,brand:"Track",bS:"track",name:"Criterion",slug:"criterion",img:"track-criterion",date:"2024-10",cover:"HK22C - QR-12 Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Criterion M.D.",cT:"Asymmetric",rg:2.500,diff:0.052,mb:0.018},
+  {id:245,brand:"Storm",bS:"storm",name:"Phaze A.I.",slug:"phaze-ai",img:"storm-phaze-ai",date:"2024-10",cover:"TX-16 Pearl",ct:"Pearl",finish:"Power Edge",core:"Velocity A.I.",cT:"Symmetric",rg:2.470,diff:0.053,mb:null},
+  {id:246,brand:"Motiv",bS:"motiv",name:"Raptor Rush",slug:"raptor-rush",img:"motiv-raptor-rush",date:"2024-10",cover:"Propulsion FYJ Pearl",ct:"Pearl",finish:"5000 LSS",core:"Affliction V2",cT:"Symmetric",rg:2.480,diff:0.055,mb:null},
+  {id:247,brand:"Storm",bS:"storm",name:"Wild Absolute",slug:"wild-absolute",img:"storm-wild-absolute",date:"2024-10",cover:"NeX Solid",ct:"Solid",finish:"Reacta Gloss",core:"Sentinel",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.021},
+  {id:248,brand:"Roto Grip",bS:"roto-grip",name:"X-Cell Tour",slug:"x-cell-tour",img:"roto-grip-x-cell-tour",date:"2024-10",cover:"Hyper Response Pearl",ct:"Pearl",finish:"1500 Polished",core:"Nucleus + A.I.",cT:"Asymmetric",rg:2.500,diff:0.056,mb:0.019},
+  {id:249,brand:"SWAG",bS:"swag",name:"Goat",slug:"goat",img:"swag-goat",date:"2024-10",cover:"Up 1 Pearl",ct:"Pearl",finish:"2000 Sheen",core:"Dominance V2",cT:"Asymmetric",rg:2.554,diff:0.041,mb:0.015},
+  {id:250,brand:"Storm",bS:"storm",name:"PhysiX Solid",slug:"physix-solid",img:"storm-physix-solid",date:"2024-10",cover:"EXO Solid",ct:"Solid",finish:"2000 Abralon",core:"Atomic",cT:"Asymmetric",rg:2.480,diff:0.053,mb:0.017},
+  {id:251,brand:"Hammer",bS:"hammer",name:"Black Widow 3.0 Poison B/B/C",slug:"black-widow-30-poison-blackburgundycherry",img:"hammer-black-widow-30-poison-blackburgundycherry",date:"2024-10",cover:"HK22 - Aggression Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:252,brand:"900 Global",bS:"900-global",name:"Sublime Focus",slug:"sublime-focus",img:"900-global-sublime-focus",date:"2024-09",cover:"Reserve Blend 804 Solid",ct:"Solid",finish:"2000 Abralon",core:"Immersed A.I.",cT:"Symmetric",rg:2.470,diff:0.056,mb:null},
+  {id:253,brand:"Storm",bS:"storm",name:"Ion Max",slug:"ion-max",img:"storm-ion-max",date:"2024-09",cover:"NRG Solid",ct:"Solid",finish:"2000 Abralon",core:"Element Max A.I.",cT:"Asymmetric",rg:2.470,diff:0.055,mb:0.014},
+  {id:254,brand:"Columbia 300",bS:"columbia-300",name:"Super Cuda PowerCOR",slug:"super-cuda-powercor",img:"columbia-300-super-cuda-powercor",date:"2024-09",cover:"Formula 1 Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Cuda PowerCOR",cT:"Symmetric",rg:2.501,diff:0.047,mb:null},
+  {id:255,brand:"DV8",bS:"dv8",name:"Mantra",slug:"mantra",img:"dv8-mantra",date:"2024-09",cover:"HK22 - Inciter Xtreme Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Mantra",cT:"Asymmetric",rg:2.498,diff:0.047,mb:0.011},
+  {id:256,brand:"Ebonite",bS:"ebonite",name:"Crusher",slug:"crusher",img:"ebonite-crusher",date:"2024-09",cover:"Optimize Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Crusher",cT:"Asymmetric",rg:2.489,diff:0.056,mb:0.016},
+  {id:257,brand:"Ebonite",bS:"ebonite",name:"The One Reverb",slug:"the-one-reverb",img:"ebonite-the-one-reverb",date:"2024-09",cover:"HK22C - GB 15.1 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Centrex Sym. MB",cT:"Asymmetric",rg:2.466,diff:0.056,mb:0.027},
+  {id:258,brand:"Hammer",bS:"hammer",name:"Pure Envy",slug:"pure-envy",img:"hammer-pure-envy",date:"2024-09",cover:"HK22C - Cohesion Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Launcher",cT:"Asymmetric",rg:2.505,diff:0.055,mb:0.021},
+  {id:259,brand:"Storm",bS:"storm",name:"The Road S",slug:"the-road-s",img:"storm-the-road-s",date:"2024-09",cover:"TX-22 Solid",ct:"Solid",finish:"2000 Abralon",core:"Inverted Fe2 A.I.",cT:"Symmetric",rg:2.550,diff:0.045,mb:null},
+  {id:260,brand:"Hammer",bS:"hammer",name:"Violent Effect",slug:"violent-effect",img:"hammer-violent-effect",date:"2024-09",cover:"HK22C - Cohesion Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Huntsman",cT:"Asymmetric",rg:2.470,diff:0.050,mb:0.017},
+  {id:261,brand:"Storm",bS:"storm",name:"Motor",slug:"motor",img:"storm-motor",date:"2024-09",cover:"NeX Pearl",ct:"Pearl",finish:"1500 Polished",core:"Torque A.I.",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.017},
+  {id:262,brand:"Motiv",bS:"motiv",name:"Subzero Forge",slug:"subzero-forge",img:"motiv-subzero-forge",date:"2024-09",cover:"Leverage MXC Solid",ct:"Solid",finish:"2000 LSS",core:"Detonator",cT:"Symmetric",rg:2.470,diff:0.055,mb:null},
+  {id:263,brand:"SWAG",bS:"swag",name:"Big Bro Assemble",slug:"big-bro-assemble",img:"swag-big-bro-assemble",date:"2024-09",cover:"Up 1 Solid",ct:"Solid",finish:"2500 Sanded",core:"Dominance",cT:"Asymmetric",rg:2.484,diff:0.054,mb:0.021},
+  {id:264,brand:"Ebonite",bS:"ebonite",name:"The One Pluto",slug:"the-one-pluto",img:"ebonite-the-one-pluto",date:"2024-09",cover:"HK22 - GB 14.4 Hybrid",ct:"Hybrid",finish:"500/1000/2000 Siaair MP",core:"Centrex Sym. MB",cT:"Asymmetric",rg:2.466,diff:0.056,mb:0.027},
+  {id:265,brand:"Ebonite",bS:"ebonite",name:"Iron Angular One",slug:"iron-angular-one",img:"ebonite-iron-angular-one",date:"2024-09",cover:"HK22 - XL8900 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Iron",cT:"Asymmetric",rg:2.463,diff:0.053,mb:0.019},
+  {id:266,brand:"Pyramid",bS:"pyramid",name:"Blood Moon Evolve",slug:"blood-moon-evolve",img:"pyramid-blood-moon-evolve",date:"2024-09",cover:"GPS Navigational Pearl+",ct:"Pearl",finish:"2000 Abralon + Polish",core:"SG Equinox",cT:"Symmetric",rg:2.469,diff:0.047,mb:null},
+  {id:267,brand:"Track",bS:"track",name:"Paragon Battle",slug:"paragon-battle",img:"track-paragon-battle",date:"2024-09",cover:"HK22C - QR-13 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair MP",core:"I-Core 3.0",cT:"Asymmetric",rg:2.486,diff:0.056,mb:0.015},
+  {id:268,brand:"Track",bS:"track",name:"Theorem Purple/Black",slug:"theorem-purpleblack",img:"track-theorem-purpleblack",date:"2024-09",cover:"HK22 - Prime Response Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"MC2",cT:"Asymmetric",rg:2.473,diff:0.046,mb:0.017},
+  {id:269,brand:"Brunswick",bS:"brunswick",name:"Black Titan Nirvana",slug:"black-titan-nirvana",img:"brunswick-black-titan-nirvana",date:"2024-08",cover:"HK22 - ECS Hook 2.0 Pearl",ct:"Pearl",finish:"500/1000 Siaair + Compound",core:"Nirvana Ultra Low RG",cT:"Asymmetric",rg:2.477,diff:0.054,mb:0.013},
+  {id:270,brand:"Storm",bS:"storm",name:"DNA Strand",slug:"dna-strand",img:"storm-dna-strand",date:"2024-08",cover:"NeX Pearl",ct:"Pearl",finish:"1500 Polished",core:"Supercoil",cT:"Asymmetric",rg:2.470,diff:0.053,mb:0.023},
+  {id:271,brand:"Motiv",bS:"motiv",name:"Pride Liberty",slug:"pride-liberty",img:"motiv-pride-liberty",date:"2024-08",cover:"Dynamic Propulsion Hybrid",ct:"Hybrid",finish:"4000 LSS",core:"Dominion",cT:"Asymmetric",rg:2.500,diff:0.042,mb:0.010},
+  {id:272,brand:"Brunswick",bS:"brunswick",name:"Mesmerize",slug:"mesmerize",img:"brunswick-mesmerize",date:"2024-08",cover:"HK22C - EVO Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"Tri-Elliptic",cT:"Asymmetric",rg:2.510,diff:0.056,mb:0.017},
+  {id:273,brand:"Brunswick",bS:"brunswick",name:"Vaporize",slug:"vaporize",img:"brunswick-vaporize",date:"2024-08",cover:"HK22C - EVO Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Zone Asymmetric",cT:"Asymmetric",rg:2.478,diff:0.048,mb:0.017},
+  {id:274,brand:"Radical",bS:"radical",name:"The Hitter Pearl",slug:"the-hitter-pearl",img:"radical-the-hitter-pearl",date:"2024-08",cover:"HK22 - Utility Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Hitter",cT:"Asymmetric",rg:2.488,diff:0.053,mb:0.015},
+  {id:275,brand:"Track",bS:"track",name:"Stealth Hybrid",slug:"stealth-hybrid",img:"track-stealth-hybrid",date:"2024-08",cover:"HK22 - Prime Response Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Stealth",cT:"Symmetric",rg:2.482,diff:0.056,mb:null},
+  {id:276,brand:"Columbia 300",bS:"columbia-300",name:"Atlas Hybrid",slug:"atlas-hybrid",img:"columbia-300-atlas-hybrid",date:"2024-08",cover:"HK22 - Formula 1 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Atlas",cT:"Asymmetric",rg:2.520,diff:0.054,mb:0.018},
+  {id:277,brand:"Hammer",bS:"hammer",name:"Extreme Envy Gold Pearl",slug:"extreme-envy-gold-pearl",img:"hammer-extreme-envy-gold-pearl",date:"2024-08",cover:"HK22 - Envy Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Launcher LRG",cT:"Asymmetric",rg:2.479,diff:0.054,mb:0.022},
+  {id:278,brand:"900 Global",bS:"900-global",name:"Honey Badger Renewal",slug:"honey-badger-renewal",img:"900-global-honey-badger-renewal",date:"2024-08",cover:"Reserve Blend 702 Pearl",ct:"Pearl",finish:"1500 Polished",core:"Grapnel 2.0 A.I.",cT:"Asymmetric",rg:2.530,diff:0.050,mb:0.013},
+  {id:279,brand:"Roto Grip",bS:"roto-grip",name:"Attention Line",slug:"attention-line",img:"roto-grip-attention-line",date:"2024-08",cover:"OptiTrax Solid",ct:"Solid",finish:"2000 Abralon",core:"Momentous AV + A.I.",cT:"Asymmetric",rg:2.480,diff:0.049,mb:0.017},
+  {id:280,brand:"Roto Grip",bS:"roto-grip",name:"RST Crash",slug:"rst-crash",img:"roto-grip-rst-crash",date:"2024-08",cover:"OptiTrax Solid",ct:"Solid",finish:"2000 Abralon",core:"Roto Star Tour (RST)",cT:"Asymmetric",rg:2.530,diff:0.053,mb:0.016},
+  {id:281,brand:"Storm",bS:"storm",name:"Summit Ascent",slug:"summit-ascent",img:"storm-summit-ascent",date:"2024-08",cover:"R2S Solid",ct:"Solid",finish:"4000 Abralon",core:"Centripetal HD A.I.",cT:"Symmetric",rg:2.460,diff:0.056,mb:null},
+  {id:282,brand:"Roto Grip",bS:"roto-grip",name:"Optimum Idol Pearl",slug:"optimum-idol-pearl",img:"roto-grip-optimum-idol-pearl",date:"2024-08",cover:"MicroTrax Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Ikon + A.I.",cT:"Symmetric",rg:2.470,diff:0.056,mb:null},
+  {id:283,brand:"900 Global",bS:"900-global",name:"Eternity Fusion",slug:"eternity-fusion",img:"900-global-eternity-fusion",date:"2024-08",cover:"Reserve Blend 901 Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Epoch",cT:"Asymmetric",rg:2.490,diff:0.050,mb:0.014},
+  {id:284,brand:"SWAG",bS:"swag",name:"Blizzard Glacier",slug:"blizzard-glacier",img:"swag-blizzard-glacier",date:"2024-08",cover:"Up 1 Pearl",ct:"Pearl",finish:"2000 Sanded",core:"Blizzard",cT:"Asymmetric",rg:2.506,diff:0.051,mb:0.030},
+  {id:285,brand:"900 Global",bS:"900-global",name:"Harsh Reality Pearl",slug:"harsh-reality-pearl",img:"900-global-harsh-reality-pearl",date:"2024-07",cover:"Reserve Blend 902 Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Disturbance AI",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.019},
+  {id:286,brand:"Hammer",bS:"hammer",name:"Black Widow Night Breaker",slug:"black-widow-night-breaker",img:"hammer-black-widow-night-breaker",date:"2024-07",cover:"HK22 - Semtex Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:287,brand:"Storm",bS:"storm",name:"Bite Panic X",slug:"bite-panic-x",img:"storm-bite-panic-x",date:"2024-07",cover:"EXO Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"G2",cT:"Asymmetric",rg:2.470,diff:0.058,mb:0.028},
+  {id:288,brand:"Storm",bS:"storm",name:"Virtual Gravity Pro X3",slug:"virtual-gravity-pro-x3",img:"storm-virtual-gravity-pro-x3",date:"2024-07",cover:"EXO Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Shape-Lock HD",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.020},
+  {id:289,brand:"Storm",bS:"storm",name:"Iconic Code",slug:"iconic-code",img:"storm-iconic-code",date:"2024-07",cover:"NeX Pearl",ct:"Pearl",finish:"1500 Polished",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  {id:290,brand:"Hammer",bS:"hammer",name:"Hazmat Solid",slug:"hazmat-solid",img:"hammer-hazmat-solid",date:"2024-07",cover:"Semtex Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Hazmat",cT:"Symmetric",rg:2.479,diff:0.055,mb:null},
+  {id:291,brand:"DV8",bS:"dv8",name:"Wicked Collision",slug:"wicked-collision",img:"dv8-wicked-collision",date:"2024-07",cover:"HK22C - Havoc Solid",ct:"Solid",finish:"500/1000/1500 Siaair + Compound",core:"Collision",cT:"Asymmetric",rg:2.462,diff:0.052,mb:0.019},
+  {id:292,brand:"Motiv",bS:"motiv",name:"Supra GT",slug:"supra-gt",img:"motiv-supra-gt",date:"2024-07",cover:"Propulsion XRT Pearl",ct:"Pearl",finish:"5500 LSP",core:"Quadfire V2",cT:"Symmetric",rg:2.570,diff:0.040,mb:null},
+  {id:293,brand:"Columbia 300",bS:"columbia-300",name:"Max Speed",slug:"max-speed",img:"columbia-300-max-speed",date:"2024-07",cover:"HK22 - Formula 1 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Shifter",cT:"Asymmetric",rg:2.478,diff:0.050,mb:0.015},
+  {id:294,brand:"900 Global",bS:"900-global",name:"Cruise Control",slug:"cruise-control",img:"900-global-cruise-control",date:"2024-06",cover:"Reserve Blend 901 Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Ellipticon",cT:"Asymmetric",rg:2.490,diff:0.054,mb:0.029},
+  {id:295,brand:"Roto Grip",bS:"roto-grip",name:"X-Cell",slug:"x-cell",img:"roto-grip-x-cell",date:"2024-06",cover:"eTrax ULTRA Solid",ct:"Solid",finish:"2000 Abralon",core:"Nucleus + A.I.",cT:"Asymmetric",rg:2.500,diff:0.056,mb:0.019},
+  {id:296,brand:"Storm",bS:"storm",name:"Ion Pro",slug:"ion-pro",img:"storm-ion-pro",date:"2024-06",cover:"TX-16 Hybrid",ct:"Hybrid",finish:"4000 Abralon",core:"Element Tour A.I.",cT:"Asymmetric",rg:2.470,diff:0.035,mb:0.014},
+  {id:297,brand:"Hammer",bS:"hammer",name:"Black Widow 3.0 Poison Black Solid",slug:"black-widow-30-poison-black-solid",img:"hammer-black-widow-30-poison-black-solid",date:"2024-06",cover:"HK22 - Aggression Solid",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:298,brand:"900 Global",bS:"900-global",name:"Wolverine Wrath",slug:"wolverine-wrath",img:"900-global-wolverine-wrath",date:"2024-06",cover:"Reserve Blend 701 Pearl",ct:"Pearl",finish:"3000 Abralon",core:"Lacerate 2.0",cT:"Symmetric",rg:2.540,diff:0.053,mb:null},
+  {id:299,brand:"900 Global",bS:"900-global",name:"Cruise GPT",slug:"cruise-gpt",img:"900-global-cruise-gpt",date:"2024-05",cover:"Reserve Blend 90X Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Ellipticon A.I.",cT:"Asymmetric",rg:2.480,diff:0.056,mb:0.030},
+  {id:300,brand:"Storm",bS:"storm",name:"Shadow Lock Red",slug:"shadow-lock-red",img:"storm-shadow-lock-red",date:"2024-05",cover:"R2S Pro Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"RAD-X",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:301,brand:"Hammer",bS:"hammer",name:"Black Widow Toxin Hybrid",slug:"black-widow-toxin-hybrid",img:"hammer-black-widow-toxin-hybrid",date:"2024-05",cover:"Aggression Plus Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:302,brand:"Storm",bS:"storm",name:"Hy-Road Punch",slug:"hy-road-punch",img:"storm-hy-road-punch",date:"2024-05",cover:"R2S DEEP Pearl",ct:"Pearl",finish:"1500 Polished",core:"Inverted Fe2 A.I.",cT:"Symmetric",rg:2.550,diff:0.045,mb:null},
+  {id:303,brand:"Roto Grip",bS:"roto-grip",name:"Attention Spot",slug:"attention-spot",img:"roto-grip-attention-spot",date:"2024-05",cover:"MicroTrax Pearl",ct:"Pearl",finish:"1500 Polished",core:"Momentous",cT:"Asymmetric",rg:2.500,diff:0.053,mb:0.011},
+  {id:304,brand:"900 Global",bS:"900-global",name:"Gear 300 Formula",slug:"gear-300-formula",img:"900-global-gear-300-formula",date:"2024-05",cover:"Reserve Blend 901 Pearl",ct:"Pearl",finish:"1500 Polished",core:"Identity",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.024},
+  {id:305,brand:"Track",bS:"track",name:"Theorem Black Smoke",slug:"theorem-black-smoke",img:"track-theorem-black-smoke",date:"2024-05",cover:"HK22 - Prime Response Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"MC2",cT:"Asymmetric",rg:2.473,diff:0.046,mb:0.017},
+  {id:306,brand:"Storm",bS:"storm",name:"Marvel Maxx Black",slug:"marvel-maxx-black",img:"storm-marvel-maxx-black",date:"2024-02",cover:"NRG Pro Solid",ct:"Solid",finish:"1500 Polished",core:"Centripetal",cT:"Symmetric",rg:2.480,diff:0.050,mb:null},
+  {id:307,brand:"Track",bS:"track",name:"Archetype Hybrid",slug:"archetype-hybrid",img:"track-archetype-hybrid",date:"2024-02",cover:"HK22 - QR-11 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"I-Core 3.0 Slim",cT:"Asymmetric",rg:2.518,diff:0.053,mb:0.020},
+  {id:308,brand:"Brunswick",bS:"brunswick",name:"Endeavor",slug:"endeavor",img:"brunswick-endeavor",date:"2024-02",cover:"Activator Plus 3.0 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Tiered Hexagon",cT:"Symmetric",rg:2.540,diff:0.045,mb:null},
+  {id:309,brand:"Brunswick",bS:"brunswick",name:"Ultimate Defender",slug:"ultimate-defender",img:"brunswick-ultimate-defender",date:"2024-02",cover:"HK22 - ACT 3.0 Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Portal X",cT:"Asymmetric",rg:2.473,diff:0.054,mb:0.015},
+  {id:310,brand:"900 Global",bS:"900-global",name:"Harsh Reality",slug:"harsh-reality",img:"900-global-harsh-reality",date:"2024-02",cover:"Reserve Blend 902 Solid",ct:"Solid",finish:"2000 Abralon",core:"Disturbance AI",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.019},
+  {id:311,brand:"Roto Grip",bS:"roto-grip",name:"Attention Star",slug:"attention-star",img:"roto-grip-attention-star",date:"2024-02",cover:"eTrax Plus Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Momentous AV + A.I.",cT:"Asymmetric",rg:2.480,diff:0.049,mb:0.017},
+  {id:312,brand:"Storm",bS:"storm",name:"Lock It",slug:"lock-it",img:"storm-lock-it",date:"2024-02",cover:"NRG Pro Solid",ct:"Solid",finish:"2000 Abralon",core:"RAD-X",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:313,brand:"Motiv",bS:"motiv",name:"Evoke",slug:"evoke",img:"motiv-evoke",date:"2024-02",cover:"Leverage MXC Solid",ct:"Solid",finish:"2000 LSS",core:"Overload",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.015},
+  {id:314,brand:"Hammer",bS:"hammer",name:"Black Widow 3.0",slug:"black-widow-30",img:"hammer-black-widow-30",date:"2024-01",cover:"HK22 - Aggression Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:315,brand:"Ebonite",bS:"ebonite",name:"Emerge Hybrid",slug:"emerge-hybrid",img:"ebonite-emerge-hybrid",date:"2024-01",cover:"HK22 - Optimize Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Emerge",cT:"Asymmetric",rg:2.510,diff:0.053,mb:0.021},
+  {id:316,brand:"Storm",bS:"storm",name:"Absolute Power",slug:"absolute-power",img:"storm-absolute-power",date:"2024-01",cover:"R2S DEEP Solid",ct:"Solid",finish:"4000 Abralon",core:"Sentinel",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.021},
+  {id:317,brand:"Storm",bS:"storm",name:"Summit Peak",slug:"summit-peak",img:"storm-summit-peak",date:"2024-01",cover:"TX-23 Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Centripetal HD A.I.",cT:"Symmetric",rg:2.460,diff:0.056,mb:null},
+  {id:318,brand:"Motiv",bS:"motiv",name:"Crimson Jackal",slug:"crimson-jackal",img:"motiv-crimson-jackal",date:"2024-01",cover:"Propulsion HV+",ct:"Pearl",finish:"5000 LSS",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:319,brand:"Storm",bS:"storm",name:"Phaze Shift",slug:"phaze-shift",img:"storm-phaze-shift",date:"2024-01",cover:"TX-23 Solid",ct:"Solid",finish:"2000 Abralon",core:"Velocity",cT:"Symmetric",rg:2.480,diff:0.051,mb:null},
+  {id:320,brand:"Roto Grip",bS:"roto-grip",name:"RST X-4 S",slug:"rst-x-4-s",img:"roto-grip-rst-x-4-s",date:"2024-01",cover:"Hyper X Pearl",ct:"Pearl",finish:"1500 Polished",core:"Roto Star Tour (RST)",cT:"Asymmetric",rg:2.530,diff:0.053,mb:0.016},
+  {id:321,brand:"900 Global",bS:"900-global",name:"Sublime",slug:"sublime",img:"900-global-sublime",date:"2023-12",cover:"Reserve Blend 802 Hybrid",ct:"Hybrid",finish:"Reacta Gloss",core:"Immersed",cT:"Symmetric",rg:2.470,diff:0.056,mb:null},
+  {id:322,brand:"900 Global",bS:"900-global",name:"Duty Solid",slug:"duty-solid",img:"900-global-duty-solid",date:"2023-12",cover:"S86 R Solid",ct:"Solid",finish:"2000 Abralon",core:"Foundation Gold",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.017},
+  {id:323,brand:"Track",bS:"track",name:"Theorem",slug:"theorem",img:"track-theorem",date:"2023-12",cover:"HK22 - Prime Response Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"MC2",cT:"Asymmetric",rg:2.473,diff:0.046,mb:0.017},
+  {id:324,brand:"Radical",bS:"radical",name:"ZigZag",slug:"zigzag",img:"radical-zigzag",date:"2023-12",cover:"HK22 - HyperKinetic Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"ZigZag",cT:"Asymmetric",rg:2.501,diff:0.045,mb:0.015},
+  {id:325,brand:"DV8",bS:"dv8",name:"Violent Collision",slug:"violent-collision",img:"dv8-violent-collision",date:"2023-12",cover:"HK22 - Havoc Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Collision",cT:"Asymmetric",rg:2.462,diff:0.052,mb:0.019},
+  {id:326,brand:"900 Global",bS:"900-global",name:"Zen GPT",slug:"zen-gpt",img:"900-global-zen-gpt",date:"2023-12",cover:"Reserve Blend 80X Pearl",ct:"Pearl",finish:"1500 Polished",core:"Meditate A.I.",cT:"Symmetric",rg:2.480,diff:0.053,mb:null},
+  {id:327,brand:"Storm",bS:"storm",name:"Hy-Road Pink Pearl",slug:"hy-road-pink-pearl",img:"storm-hy-road-pink-pearl",date:"2023-12",cover:"R2S Pearl",ct:"Pearl",finish:"1500 Polished",core:"Inverted Fe2",cT:"Symmetric",rg:2.570,diff:0.046,mb:null},
+  {id:328,brand:"900 Global",bS:"900-global",name:"Reality GPT",slug:"reality-gpt",img:"900-global-reality-gpt",date:"2023-12",cover:"Reserve Blend 90X Pearl",ct:"Pearl",finish:"1500 Polished",core:"Disturbance AI",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.019},
+  {id:329,brand:"Motiv",bS:"motiv",name:"Raptor Fury",slug:"raptor-fury",img:"motiv-raptor-fury",date:"2023-11",cover:"Leverage XFS Solid",ct:"Solid",finish:"2000 LSS",core:"Affliction V2",cT:"Symmetric",rg:2.480,diff:0.055,mb:null},
+  {id:330,brand:"900 Global",bS:"900-global",name:"Zen Sage",slug:"zen-sage",img:"900-global-zen-sage",date:"2023-11",cover:"S77 Response Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Meditate",cT:"Symmetric",rg:2.490,diff:0.051,mb:null},
+  {id:331,brand:"Roto Grip",bS:"roto-grip",name:"Clone Attack",slug:"clone-attack",img:"roto-grip-clone-attack",date:"2023-11",cover:"MicroTrax Solid",ct:"Particle",finish:"1500 Polished",core:"Cloned E.T.",cT:"Asymmetric",rg:2.510,diff:0.056,mb:0.016},
+  {id:332,brand:"Pyramid",bS:"pyramid",name:"Fortress Solid",slug:"fortress-solid",img:"pyramid-fortress-solid",date:"2023-11",cover:"GPS Navigational Solid ATX-XX",ct:"Solid",finish:"2000 Abralon",core:"SG 10.5 Portal",cT:"Asymmetric",rg:2.533,diff:0.050,mb:0.023},
+  {id:333,brand:"Storm",bS:"storm",name:"Journey",slug:"journey",img:"storm-journey",date:"2023-11",cover:"TX-16 Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"F-8",cT:"Symmetric",rg:2.520,diff:0.053,mb:null},
+  {id:334,brand:"Hammer",bS:"hammer",name:"NU Blue Hammer",slug:"nu-blue-hammer",img:"hammer-nu-blue-hammer",date:"2023-11",cover:"Not Urethane (Hammer)",ct:"NU",finish:"500/1000 Siaair MP",core:"LED (reactive)",cT:"Symmetric",rg:2.586,diff:0.027,mb:null},
+  {id:335,brand:"Hammer",bS:"hammer",name:"Hazmat",slug:"hazmat",img:"hammer-hazmat",date:"2023-11",cover:"HK22 - Semtex Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Hazmat",cT:"Symmetric",rg:2.479,diff:0.055,mb:null},
+  {id:336,brand:"Columbia 300",bS:"columbia-300",name:"Piranha PowerCOR",slug:"piranha-powercor",img:"columbia-300-piranha-powercor",date:"2023-11",cover:"HK22 - ERT+ Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Piranha PowerCOR",cT:"Symmetric",rg:2.518,diff:0.055,mb:null},
+  {id:337,brand:"Storm",bS:"storm",name:"Solution Black",slug:"solution-black",img:"storm-solution-black",date:"2023-11",cover:"NRG 2 Solid",ct:"Solid",finish:"1500 Polished",core:"RAD-A",cT:"Asymmetric",rg:2.520,diff:0.051,mb:0.014},
+  {id:338,brand:"Roto Grip",bS:"roto-grip",name:"Attention X",slug:"attention-x",img:"roto-grip-attention-x",date:"2023-11",cover:"Hyper Response Solid",ct:"Solid",finish:"2000 Abralon",core:"Momentous",cT:"Asymmetric",rg:2.500,diff:0.053,mb:0.011},
+  {id:339,brand:"SWAG",bS:"swag",name:"Archive",slug:"archive",img:"swag-archive",date:"2023-11",cover:"Up 1 Pearl",ct:"Pearl",finish:"3000 Sanded",core:"Archive",cT:"Asymmetric",rg:2.557,diff:0.051,mb:0.036},
+  {id:340,brand:"900 Global",bS:"900-global",name:"Honey Badger Extreme 2024",slug:"honey-badger-extreme-2024",img:"900-global-honey-badger-extreme-2024",date:"2023-11",cover:"S77M Pearl",ct:"Pearl",finish:"1500 Polished",core:"Grapnel 2.0",cT:"Asymmetric",rg:2.540,diff:0.048,mb:0.012},
+  {id:341,brand:"Storm",bS:"storm",name:"Summit Pearl",slug:"summit-pearl",img:"storm-summit-pearl",date:"2023-11",cover:"NRG Pearl",ct:"Pearl",finish:"1500 Polished",core:"Centripetal HD A.I.",cT:"Symmetric",rg:2.460,diff:0.056,mb:null},
+  {id:342,brand:"Storm",bS:"storm",name:"Code Supreme",slug:"code-supreme",img:"storm-code-supreme",date:"2023-10",cover:"EXO Pearl",ct:"Pearl",finish:"1500 Polished",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  {id:343,brand:"Ebonite",bS:"ebonite",name:"Mission 4.5",slug:"mission-45",img:"ebonite-mission-45",date:"2023-10",cover:"FX12 Solid",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Mission",cT:"Asymmetric",rg:2.528,diff:0.054,mb:0.017},
+  {id:344,brand:"Track",bS:"track",name:"Paragon Weapon",slug:"paragon-weapon",img:"track-paragon-weapon",date:"2023-10",cover:"QR-12 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"I-Core 3.0",cT:"Asymmetric",rg:2.486,diff:0.056,mb:0.015},
+  {id:345,brand:"Roto Grip",bS:"roto-grip",name:"Magic Gem",slug:"magic-gem",img:"roto-grip-magic-gem",date:"2023-10",cover:"MicroTrax Hybrid",ct:"Hybrid",finish:"2000 Abralon",core:"Defiant LRG",cT:"Asymmetric",rg:2.470,diff:0.053,mb:0.016},
+  {id:346,brand:"Brunswick",bS:"brunswick",name:"Ethos",slug:"ethos",img:"brunswick-ethos",date:"2023-10",cover:"HK22 - Savvy Hook 4.0 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Ethos",cT:"Symmetric",rg:2.481,diff:0.053,mb:null},
+  {id:347,brand:"Brunswick",bS:"brunswick",name:"Perfect Mindset",slug:"perfect-mindset",img:"brunswick-perfect-mindset",date:"2023-10",cover:"HK22 - Evolution Hybrid",ct:"Hybrid",finish:"500/1500/3000 Siaair MP",core:"Mindset",cT:"Asymmetric",rg:2.487,diff:0.050,mb:0.021},
+  {id:348,brand:"Radical",bS:"radical",name:"The Hitter",slug:"the-hitter",img:"radical-the-hitter",date:"2023-10",cover:"Utility Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Hitter",cT:"Asymmetric",rg:2.488,diff:0.053,mb:0.015},
+  {id:349,brand:"Motiv",bS:"motiv",name:"Nuclear Forge",slug:"nuclear-forge",img:"motiv-nuclear-forge",date:"2023-10",cover:"Propulsion HVP Pearl",ct:"Pearl",finish:"5000 LSS",core:"Detonator",cT:"Symmetric",rg:2.470,diff:0.055,mb:null},
+  {id:350,brand:"Roto Grip",bS:"roto-grip",name:"Gem Crystal",slug:"gem-crystal",img:"roto-grip-gem-crystal",date:"2023-10",cover:"Hyper X Hybrid",ct:"Hybrid",finish:"3000 Abralon",core:"Defiant LRG",cT:"Asymmetric",rg:2.470,diff:0.053,mb:0.016},
+  {id:351,brand:"Roto Grip",bS:"roto-grip",name:"Idol MPW",slug:"idol-mpw",img:"roto-grip-idol-mpw",date:"2023-10",cover:"XtremeTrax Solid",ct:"Solid",finish:"2000 Abralon",core:"Ikon",cT:"Symmetric",rg:2.490,diff:0.052,mb:null},
+  {id:352,brand:"Pyramid",bS:"pyramid",name:"Force Pink Label",slug:"force-pink-label",img:"pyramid-force-pink-label",date:"2023-09",cover:"GPS Navigational ATX Pearl",ct:"Pearl",finish:"4000 Abralon",core:"SG Precessional",cT:"Asymmetric",rg:2.530,diff:0.051,mb:0.019},
+  {id:353,brand:"Storm",bS:"storm",name:"Virtual Energy Blackout",slug:"virtual-energy-blackout",img:"storm-virtual-energy-blackout",date:"2023-09",cover:"ReX Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Shape-Lock HD",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.020},
+  {id:354,brand:"900 Global",bS:"900-global",name:"Eternity Pi",slug:"eternity-pi",img:"900-global-eternity-pi",date:"2023-09",cover:"Reserve Blend 901 Solid",ct:"Solid",finish:"2000 Abralon",core:"Epoch",cT:"Asymmetric",rg:2.490,diff:0.050,mb:0.014},
+  {id:355,brand:"Ebonite",bS:"ebonite",name:"The One Encore",slug:"the-one-encore",img:"ebonite-the-one-encore",date:"2023-09",cover:"HK22 - GB 14.4 Hybrid",ct:"Hybrid",finish:"500/1500/4000 Siaair MP",core:"Centrex Sym. MB",cT:"Asymmetric",rg:2.466,diff:0.056,mb:0.027},
+  {id:356,brand:"Hammer",bS:"hammer",name:"Envy Tour Pearl",slug:"envy-tour-pearl",img:"hammer-envy-tour-pearl",date:"2023-09",cover:"HK22 - Envy Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Obsession Tour",cT:"Asymmetric",rg:2.469,diff:0.034,mb:0.013},
+  {id:357,brand:"Hammer",bS:"hammer",name:"Extreme Envy",slug:"extreme-envy",img:"hammer-extreme-envy",date:"2023-09",cover:"Envy Solid CFI",ct:"Solid",finish:"500/2000 Siaair MP",core:"Launcher LRG",cT:"Asymmetric",rg:2.479,diff:0.054,mb:0.022},
+  {id:358,brand:"Brunswick",bS:"brunswick",name:"Defender Aegis",slug:"defender-aegis",img:"brunswick-defender-aegis",date:"2023-09",cover:"HK22 - ACT 3.0 Pearl",ct:"Pearl",finish:"500/2000 Siaair MP",core:"Portal X",cT:"Asymmetric",rg:2.473,diff:0.054,mb:0.015},
+  {id:359,brand:"Storm",bS:"storm",name:"Absolute Pearl",slug:"absolute-pearl",img:"storm-absolute-pearl",date:"2023-09",cover:"EXO Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Sentinel",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.021},
+  {id:360,brand:"Motiv",bS:"motiv",name:"Pride Dynasty",slug:"pride-dynasty",img:"motiv-pride-dynasty",date:"2023-09",cover:"Leverage MFS Solid",ct:"Solid",finish:"2000 LSS",core:"Dominion",cT:"Asymmetric",rg:2.500,diff:0.042,mb:0.010},
+  {id:361,brand:"Storm",bS:"storm",name:"Marvel Blast",slug:"marvel-blast",img:"storm-marvel-blast",date:"2023-09",cover:"NRG Pro Pearl",ct:"Pearl",finish:"1500 Polished",core:"Centripetal",cT:"Symmetric",rg:2.480,diff:0.050,mb:null},
+  {id:362,brand:"Storm",bS:"storm",name:"Hy-Road Flash",slug:"hy-road-flash",img:"storm-hy-road-flash",date:"2023-09",cover:"R2X Pearl Nano",ct:"Pearl",finish:"1500 Polished",core:"Inverted Fe2",cT:"Symmetric",rg:2.570,diff:0.046,mb:null},
+  {id:363,brand:"Track",bS:"track",name:"Paragon Pearl",slug:"paragon-pearl",img:"track-paragon-pearl",date:"2023-08",cover:"HK22 - QR-11 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"I-Core 3.0",cT:"Asymmetric",rg:2.486,diff:0.056,mb:0.015},
+  {id:364,brand:"Radical",bS:"radical",name:"Katana Strike",slug:"katana-strike",img:"radical-katana-strike",date:"2023-08",cover:"HK22 - HyperKinetic Hybrid",ct:"Hybrid",finish:"500/1500/3000 Siaair MP",core:"Katana Assault",cT:"Asymmetric",rg:2.501,diff:0.051,mb:0.020},
+  {id:365,brand:"DV8",bS:"dv8",name:"Hellcat XLR8",slug:"hellcat-xlr8",img:"dv8-hellcat-xlr8",date:"2023-08",cover:"Maximum Havoc Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"Hell Raiser D.O.T.",cT:"Asymmetric",rg:2.537,diff:0.053,mb:0.016},
+  {id:366,brand:"Brunswick",bS:"brunswick",name:"Quantum Evo Response",slug:"quantum-evo-response",img:"brunswick-quantum-evo-response",date:"2023-08",cover:"HK22 - Evolution Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"QCS-24",cT:"Asymmetric",rg:2.511,diff:0.053,mb:0.024},
+  {id:367,brand:"Storm",bS:"storm",name:"Incite Up",slug:"incite-up",img:"storm-incite-up",date:"2023-08",cover:"ReX Pearl",ct:"Pearl",finish:"1500 Polished",core:"Tensor",cT:"Asymmetric",rg:2.500,diff:0.053,mb:0.013},
+  {id:368,brand:"Track",bS:"track",name:"Stealth Red",slug:"stealth-red",img:"track-stealth-red",date:"2023-08",cover:"QR-9 Solid",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Stealth",cT:"Symmetric",rg:2.482,diff:0.056,mb:null},
+  {id:369,brand:"Motiv",bS:"motiv",name:"Jackal Shadow",slug:"jackal-shadow",img:"motiv-jackal-shadow",date:"2023-08",cover:"Leverage Solid",ct:"Solid",finish:"3000 LSS",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:370,brand:"Storm",bS:"storm",name:"Virtual Gravity Pro-X2",slug:"virtual-gravity-pro-x2",img:"storm-virtual-gravity-pro-x2",date:"2023-08",cover:"NRG Pro Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Shape-Lock HD",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.020},
+  {id:371,brand:"Storm",bS:"storm",name:"PhysiX Tour",slug:"physix-tour",img:"storm-physix-tour",date:"2023-08",cover:"NeX Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Atomic",cT:"Asymmetric",rg:2.480,diff:0.053,mb:0.017},
+  {id:372,brand:"SWAG",bS:"swag",name:"Blizzard Zero",slug:"blizzard-zero",img:"swag-blizzard-zero",date:"2023-08",cover:"USY 3 D-78 Solid",ct:"Solid",finish:"2000 Sanded",core:"Blizzard",cT:"Asymmetric",rg:2.506,diff:0.051,mb:0.030},
+  {id:373,brand:"900 Global",bS:"900-global",name:"XPonent",slug:"xponent",img:"900-global-xponent",date:"2023-07",cover:"Reserve Blend 701 Solid",ct:"Solid",finish:"4000 Abralon",core:"Shrapnel 2.0",cT:"Symmetric",rg:2.480,diff:0.042,mb:null},
+  {id:374,brand:"Roto Grip",bS:"roto-grip",name:"Clone",slug:"clone",img:"roto-grip-clone",date:"2023-07",cover:"OpiTrax Solid",ct:"Solid",finish:"Reacta Gloss",core:"Cloned E.T.",cT:"Asymmetric",rg:2.510,diff:0.056,mb:0.016},
+  {id:375,brand:"900 Global",bS:"900-global",name:"Zen Gold Label",slug:"zen-gold-label",img:"900-global-zen-gold-label",date:"2023-07",cover:"Reserve Blend 801 Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Meditate",cT:"Symmetric",rg:2.490,diff:0.051,mb:null},
+  {id:376,brand:"900 Global",bS:"900-global",name:"Tough Reality",slug:"tough-reality",img:"900-global-tough-reality",date:"2023-07",cover:"S86 R Solid",ct:"Solid",finish:"2000 Abralon",core:"Disturbance",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.018},
+  {id:377,brand:"Columbia 300",bS:"columbia-300",name:"Atlas",slug:"atlas",img:"columbia-300-atlas",date:"2023-07",cover:"Formula 1 Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Atlas",cT:"Asymmetric",rg:2.520,diff:0.054,mb:0.018},
+  {id:378,brand:"Ebonite",bS:"ebonite",name:"Emerge",slug:"emerge",img:"ebonite-emerge",date:"2023-07",cover:"HK22 - Optimize Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Emerge",cT:"Asymmetric",rg:2.510,diff:0.053,mb:0.021},
+  {id:379,brand:"Hammer",bS:"hammer",name:"Dark Web Hybrid",slug:"dark-web-hybrid",img:"hammer-dark-web-hybrid",date:"2023-07",cover:"HK22 - Aggression Hybrid",ct:"Hybrid",finish:"500/1000/2000 Siaair MP",core:"Modified Spheroid",cT:"Symmetric",rg:2.514,diff:0.048,mb:null},
+  {id:380,brand:"Storm",bS:"storm",name:"Solid Lock",slug:"solid-lock",img:"storm-solid-lock",date:"2023-06",cover:"NeX Solid",ct:"Solid",finish:"1500 Polished",core:"RAD-X",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:381,brand:"Storm",bS:"storm",name:"Summit",slug:"summit",img:"storm-summit",date:"2023-06",cover:"TX-23 Hybrid",ct:"Hybrid",finish:"3000 Abralon",core:"Centripetal HD A.I.",cT:"Symmetric",rg:2.460,diff:0.056,mb:null},
+  {id:382,brand:"Radical",bS:"radical",name:"Sneak Attack Solid",slug:"sneak-attack-solid",img:"radical-sneak-attack-solid",date:"2023-06",cover:"MTS-1 Solid",ct:"Solid",finish:"500/1500/3000 Siaair MP",core:"Sneak Attack",cT:"Symmetric",rg:2.544,diff:0.036,mb:null},
+  {id:383,brand:"DV8",bS:"dv8",name:"Chill",slug:"chill",img:"dv8-chill",date:"2023-06",cover:"Inciter Max Flip Solid",ct:"Solid",finish:"500/1500/3000 Siaair MP",core:"Diva 2.0",cT:"Symmetric",rg:2.495,diff:0.051,mb:null},
+  {id:384,brand:"Track",bS:"track",name:"Stealth Pearl",slug:"stealth-pearl",img:"track-stealth-pearl",date:"2023-06",cover:"HK22 - QR-9 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Stealth",cT:"Symmetric",rg:2.482,diff:0.056,mb:null},
+  {id:385,brand:"Brunswick",bS:"brunswick",name:"Infinity",slug:"infinity",img:"brunswick-infinity",date:"2023-06",cover:"A.X.H. Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Infinity",cT:"Asymmetric",rg:2.521,diff:0.051,mb:0.010},
+  {id:386,brand:"Storm",bS:"storm",name:"Code Battle",slug:"code-battle",img:"storm-code-battle",date:"2023-06",cover:"NRG 3 Hybrid",ct:"Hybrid",finish:"3000 Abralon",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  {id:387,brand:"Track",bS:"track",name:"T-Shark Black/Purple/Mint",slug:"t-shark-blackpurplemint",img:"track-t-shark-blackpurplemint",date:"2023-05",cover:"QR-12 Solid",ct:"Solid",finish:"500/1000/1500 Siaair + Compound",core:"T-Shark",cT:"Asymmetric",rg:2.481,diff:0.053,mb:0.016},
+  {id:388,brand:"Roto Grip",bS:"roto-grip",name:"Rubicon Attack",slug:"rubicon-attack",img:"roto-grip-rubicon-attack",date:"2023-05",cover:"Hyper Response Hybrid",ct:"Hybrid",finish:"2000 Abralon",core:"Rondure",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.011},
+  {id:389,brand:"Storm",bS:"storm",name:"Phaze Ruby",slug:"phaze-ruby",img:"storm-phaze-ruby",date:"2023-05",cover:"NRG Pro Pearl",ct:"Pearl",finish:"1500 Polished",core:"Velocity",cT:"Symmetric",rg:2.480,diff:0.051,mb:null},
+  {id:390,brand:"Hammer",bS:"hammer",name:"3-D Offset Hybrid",slug:"3-d-offset-hybrid",img:"hammer-3-d-offset-hybrid",date:"2023-05",cover:"Aggression NE Hybrid",ct:"Hybrid",finish:"500/1000 Siaair + Compound",core:"High Rev Offset",cT:"Asymmetric",rg:2.489,diff:0.053,mb:0.008},
+  {id:391,brand:"Hammer",bS:"hammer",name:"Envy Pearl",slug:"envy-pearl",img:"hammer-envy-pearl",date:"2023-05",cover:"Neoflip 2.0 Pearl",ct:"Pearl",finish:"500/1000/2000 Siaair + Compound",core:"Launcher",cT:"Asymmetric",rg:2.505,diff:0.055,mb:0.021},
+  {id:392,brand:"Storm",bS:"storm",name:"Electrify B-S-Y",slug:"electrify-b-s-y",img:"storm-electrify-b-s-y",date:"2023-05",cover:"Reactor Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Circuit",cT:"Symmetric",rg:2.510,diff:0.030,mb:null},
+  {id:393,brand:"900 Global",bS:"900-global",name:"Cruise Sapphire",slug:"cruise-sapphire",img:"900-global-cruise-sapphire",date:"2023-05",cover:"S86 Beta Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Ellipticon",cT:"Asymmetric",rg:2.490,diff:0.054,mb:0.029},
+  // ── Page 6: Mar 2023 – Jan 2023 ──────────────────────────
+  {id:394,brand:"Storm",bS:"storm",name:"!Q Tour Ruby",slug:"iq-tour-ruby",img:"storm-iq-tour-ruby",date:"2023-03",cover:"R2S Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"C3 Centripetal Control",cT:"Symmetric",rg:2.490,diff:0.029,mb:null},
+  {id:395,brand:"Storm",bS:"storm",name:"DNA",slug:"dna",img:"storm-dna",date:"2023-03",cover:"EXO Solid",ct:"Solid",finish:"2000 Abralon",core:"Supercoil",cT:"Asymmetric",rg:2.470,diff:0.053,mb:0.023},
+  {id:396,brand:"Roto Grip",bS:"roto-grip",name:"Gem Pearl",slug:"gem-pearl",img:"roto-grip-gem-pearl",date:"2023-03",cover:"Hyper Response Pearl",ct:"Pearl",finish:"1500 Polished",core:"Defiant LRG",cT:"Asymmetric",rg:2.470,diff:0.053,mb:0.016},
+  {id:397,brand:"Roto Grip",bS:"roto-grip",name:"RST X-3 Pro",slug:"rst-x-3-pro",img:"roto-grip-rst-x-3-pro",date:"2023-03",cover:"XtremeTrax Solid",ct:"Solid",finish:"2000 Abralon",core:"Roto Star Tour (RST)",cT:"Asymmetric",rg:2.530,diff:0.053,mb:0.016},
+  {id:398,brand:"SWAG",bS:"swag",name:"Buzzer Beater Solid",slug:"buzzer-beater-solid",img:"swag-buzzer-beater-solid",date:"2023-03",cover:"USY 3 D-78 Solid",ct:"Solid",finish:"2000 Sanded",core:"Buzzer Beater",cT:"Asymmetric",rg:2.558,diff:0.036,mb:0.014},
+  {id:399,brand:"SWAG",bS:"swag",name:"Graffiti Tracker",slug:"graffiti-tracker",img:"swag-graffiti-tracker",date:"2023-03",cover:"Reverie 4 Pearl",ct:"Pearl",finish:"2000 Polished",core:"Ballistic",cT:"Asymmetric",rg:2.491,diff:0.053,mb:0.033},
+  {id:400,brand:"SWAG",bS:"swag",name:"Jerk Pink Hybrid",slug:"jerk-pink-hybrid",img:"swag-jerk-hybrid",date:"2023-03",cover:"USY 2 Hybrid",ct:"Hybrid",finish:"3000 Polished",core:"Prezzie",cT:"Symmetric",rg:2.528,diff:0.031,mb:null},
+  {id:401,brand:"SWAG",bS:"swag",name:"Jerk Orange Pearl",slug:"jerk-orange-pearl",img:"swag-jerk-pearl",date:"2023-03",cover:"USY 2 Pearl",ct:"Pearl",finish:"3000 Polished",core:"Prezzie",cT:"Symmetric",rg:2.528,diff:0.031,mb:null},
+  {id:402,brand:"SWAG",bS:"swag",name:"Jerk Black Solid",slug:"jerk-black-solid",img:"swag-jerk-solid",date:"2023-03",cover:"USY 2 Solid",ct:"Solid",finish:"3000 Polished",core:"Prezzie",cT:"Symmetric",rg:2.528,diff:0.031,mb:null},
+  {id:403,brand:"Hammer",bS:"hammer",name:"Envy Tour",slug:"envy-tour",img:"hammer-envy-tour",date:"2023-02",cover:"Envy Solid",ct:"Solid",finish:"500/1000 Siaair MP",core:"Obsession Tour",cT:"Asymmetric",rg:2.469,diff:0.034,mb:0.013},
+  {id:404,brand:"Hammer",bS:"hammer",name:"Black Widow 2.0 Hybrid",slug:"black-widow-20-hybrid",img:"hammer-black-widow-2-hybrid",date:"2023-02",cover:"HK22 - Aggression Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:405,brand:"DV8",bS:"dv8",name:"Captiv8",slug:"captiv8",img:"dv8-captiv8",date:"2023-02",cover:"HK22 - Inciter Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Captiv8",cT:"Symmetric",rg:2.532,diff:0.038,mb:null},
+  {id:406,brand:"Track",bS:"track",name:"Archetype",slug:"archetype",img:"track-archetype",date:"2023-02",cover:"QR-11 Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"I-Core 3.0 Slim",cT:"Asymmetric",rg:2.518,diff:0.053,mb:0.020},
+  {id:407,brand:"Storm",bS:"storm",name:"Bite Frost",slug:"bite-frost",img:"storm-bite-frost",date:"2023-02",cover:"TractionX7 Solid",ct:"Solid",finish:"Reacta Gloss",core:"G2",cT:"Asymmetric",rg:2.470,diff:0.058,mb:0.028},
+  {id:408,brand:"Roto Grip",bS:"roto-grip",name:"TNT",slug:"tnt",img:"roto-grip-tnt",date:"2023-02",cover:"eTrax Plus Solid",ct:"Solid",finish:"2000 Abralon",core:"Torpex",cT:"Symmetric",rg:2.470,diff:0.052,mb:null},
+  {id:409,brand:"900 Global",bS:"900-global",name:"Eternity",slug:"eternity",img:"900-global-eternity",date:"2023-02",cover:"S84 Response Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Epoch",cT:"Asymmetric",rg:2.490,diff:0.050,mb:0.014},
+  {id:410,brand:"Storm",bS:"storm",name:"Perfect Lock",slug:"perfect-lock",img:"storm-perfect-lock",date:"2023-02",cover:"GI-21 Solid",ct:"Solid",finish:"3000 Abralon",core:"RAD-X",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:411,brand:"Storm",bS:"storm",name:"Marvel Maxx Pink",slug:"marvel-maxx-pink",img:"storm-marvel-maxx-pink",date:"2023-02",cover:"NRG Pearl",ct:"Pearl",finish:"1500 Polished",core:"Centripetal",cT:"Symmetric",rg:2.480,diff:0.050,mb:null},
+  {id:412,brand:"Motiv",bS:"motiv",name:"Primal Shock",slug:"primal-shock",img:"motiv-primal-shock",date:"2023-02",cover:"Turmoil MFS Solid",ct:"Solid",finish:"4000 LSS",core:"Impulse V2",cT:"Symmetric",rg:2.550,diff:0.050,mb:null},
+  {id:413,brand:"Roto Grip",bS:"roto-grip",name:"Hustle BMS",slug:"hustle-bms-bluemagentasnow",img:"roto-grip-hustle-bms",date:"2023-01",cover:"VTC Pearl",ct:"Pearl",finish:"1500 Polished",core:"Hustle",cT:"Symmetric",rg:2.530,diff:0.030,mb:null},
+  {id:414,brand:"Radical",bS:"radical",name:"Katana Assault",slug:"katana-assault",img:"radical-katana-assault",date:"2023-01",cover:"HK22 - HyperKinetic Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Katana Assault",cT:"Asymmetric",rg:2.501,diff:0.051,mb:0.020},
+  {id:415,brand:"Ebonite",bS:"ebonite",name:"Envision Pearl",slug:"envision-pearl",img:"ebonite-envision-pearl",date:"2023-01",cover:"HK22 - GSV-X Pearl",ct:"Pearl",finish:"500/1000/3000 Siaair MP",core:"Envision",cT:"Asymmetric",rg:2.501,diff:0.053,mb:0.010},
+  {id:416,brand:"Columbia 300",bS:"columbia-300",name:"Explosion",slug:"explosion",img:"columbia-300-explosion",date:"2023-01",cover:"Reflex Hybrid",ct:"Hybrid",finish:"500/2000 Siaair MP",core:"Resurgence",cT:"Symmetric",rg:2.469,diff:0.043,mb:null},
+  {id:417,brand:"Brunswick",bS:"brunswick",name:"Knock Out Bruiser",slug:"knock-out-bruiser",img:"brunswick-knock-out-bruiser",date:"2023-01",cover:"Savvy Hook 4.0 Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Melee Low RG",cT:"Symmetric",rg:2.487,diff:0.050,mb:null},
+  {id:418,brand:"SWAG",bS:"swag",name:"Swagger Bomb",slug:"swagger-bomb",img:"swag-swagger-bomb",date:"2023-01",cover:"USY 2 Solid",ct:"Solid",finish:"3000 Sanded",core:"Crank3r",cT:"Symmetric",rg:2.572,diff:0.045,mb:null},
+  {id:419,brand:"Storm",bS:"storm",name:"Revenant",slug:"revenant",img:"storm-revenant",date:"2023-01",cover:"R3S Pearl",ct:"Pearl",finish:"Reacta Gloss",core:"Vector",cT:"Symmetric",rg:2.540,diff:0.050,mb:null},
+  {id:420,brand:"Storm",bS:"storm",name:"Absolute",slug:"absolute",img:"storm-absolute",date:"2023-01",cover:"R2S DEEP Hybrid",ct:"Hybrid",finish:"Reacta Gloss",core:"Sentinel",cT:"Asymmetric",rg:2.480,diff:0.050,mb:0.021},
+  {id:421,brand:"Motiv",bS:"motiv",name:"Jackal Ambush",slug:"jackal-ambush",img:"motiv-jackal-ambush",date:"2023-01",cover:"Leverage Solid",ct:"Solid",finish:"1000 LSS",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:422,brand:"Storm",bS:"storm",name:"!Q Tour Galaxy",slug:"iq-tour-galaxy",img:"storm-iq-tour-galaxy",date:"2023-01",cover:"NRG 2 Pearl",ct:"Pearl",finish:"1500 Polished",core:"C3 Centripetal Control",cT:"Symmetric",rg:2.490,diff:0.029,mb:null},
+  {id:423,brand:"Storm",bS:"storm",name:"The Code",slug:"the-code",img:"storm-the-code",date:"2023-01",cover:"NRG 3 Solid",ct:"Solid",finish:"2000 Abralon",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  // ── Page 7: Jul 2022 – Mar 2022 ──────────────────────────
+  {id:424,brand:"Hammer",bS:"hammer",name:"Ocean Vibe",slug:"ocean-vibe",img:"hammer-ocean-vibe",date:"2022-07",cover:"CT Plus Pearl",ct:"Pearl",finish:"500/1000/2000 Siaair + Polish",core:"Vibe",cT:"Symmetric",rg:2.510,diff:0.042,mb:null},
+  {id:425,brand:"Roto Grip",bS:"roto-grip",name:"IDOL Cosmos",slug:"idol-cosmos",img:"roto-grip-idol-cosmos",date:"2022-07",cover:"XtremeTrax Pearl",ct:"Pearl",finish:"4k Fast",core:"Ikon",cT:"Symmetric",rg:2.490,diff:0.052,mb:null},
+  {id:426,brand:"Storm",bS:"storm",name:"Infinite PhysiX",slug:"infinite-physix",img:"storm-infinite-physix",date:"2022-07",cover:"ReX Pearl",ct:"Pearl",finish:"4000 Abralon",core:"Atomic",cT:"Asymmetric",rg:2.480,diff:0.053,mb:0.017},
+  {id:427,brand:"Columbia 300",bS:"columbia-300",name:"Speed Deep Bruise Pearl",slug:"speed-deep-bruise-pearl",img:"columbia-300-speed-deep-bruise-pearl",date:"2022-07",cover:"ERT Pearl",ct:"Pearl",finish:"500 Siaair + Compound",core:"Shifter",cT:"Asymmetric",rg:2.478,diff:0.050,mb:0.015},
+  {id:428,brand:"Hammer",bS:"hammer",name:"Taboo GRB",slug:"taboo-grb",img:"hammer-taboo-grb",date:"2022-06",cover:"Envy Solid CFI",ct:"Solid",finish:"1500 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:429,brand:"SWAG",bS:"swag",name:"Swagger Showoff",slug:"swagger-showoff",img:"swag-swagger-showoff",date:"2022-06",cover:"Bragger 1 Pearl",ct:"Pearl",finish:"3000 Sanded",core:"Crank3r",cT:"Symmetric",rg:2.572,diff:0.045,mb:null},
+  {id:430,brand:"Track",bS:"track",name:"Stealth",slug:"stealth",img:"track-stealth",date:"2022-06",cover:"QR-9 Solid",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Stealth",cT:"Symmetric",rg:2.482,diff:0.056,mb:null},
+  {id:431,brand:"Brunswick",bS:"brunswick",name:"Attitude Control",slug:"attitude-control",img:"brunswick-attitude-control",date:"2022-06",cover:"Urethane Pearl",ct:"Urethane",finish:"500/1000 Siaair MP",core:"Contra",cT:"Symmetric",rg:2.474,diff:0.047,mb:null},
+  {id:432,brand:"Brunswick",bS:"brunswick",name:"Attitude",slug:"attitude",img:"brunswick-attitude",date:"2022-06",cover:"Activator Plus 3.0 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Contra",cT:"Symmetric",rg:2.474,diff:0.047,mb:null},
+  {id:433,brand:"DV8",bS:"dv8",name:"Diamond Diva",slug:"diamond-diva",img:"dv8-diamond-diva",date:"2022-06",cover:"Inciter Max Flip Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Diva 2.0",cT:"Symmetric",rg:2.495,diff:0.051,mb:null},
+  {id:434,brand:"Motiv",bS:"motiv",name:"Revolt Uprising",slug:"revolt-uprising",img:"motiv-revolt-uprising",date:"2022-06",cover:"Helix MXC Solid",ct:"Solid",finish:"2000 LSS",core:"Vanquish",cT:"Symmetric",rg:2.470,diff:0.056,mb:null},
+  {id:435,brand:"900 Global",bS:"900-global",name:"Vintage Obsidian",slug:"vintage-obsidian",img:"900-global-vintage-obsidian",date:"2022-06",cover:"S26 Solid Urethane",ct:"Urethane",finish:"1000 Abralon",core:"Reflector Symmetric",cT:"Symmetric",rg:2.510,diff:0.048,mb:null},
+  {id:436,brand:"Hammer",bS:"hammer",name:"Ultima Hybrid",slug:"ultima-hybrid",img:"hammer-ultima-hybrid",date:"2022-06",cover:"Aggression NE Hybrid",ct:"Hybrid",finish:"500/1000/2000 Siaair + Compound",core:"Modified Ultima",cT:"Symmetric",rg:2.480,diff:0.053,mb:null},
+  {id:437,brand:"Storm",bS:"storm",name:"Spectre Sapphire",slug:"spectre-sapphire",img:"storm-spectre-sapphire",date:"2022-06",cover:"R3S Pearl",ct:"Pearl",finish:"4k Fast",core:"Vector",cT:"Symmetric",rg:2.540,diff:0.050,mb:null},
+  {id:438,brand:"900 Global",bS:"900-global",name:"Reality Solid",slug:"reality-solid",img:"900-global-reality-solid",date:"2022-06",cover:"S84 Response Solid",ct:"Solid",finish:"2000 Abralon",core:"Disturbance",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.018},
+  {id:439,brand:"900 Global",bS:"900-global",name:"Burner Hybrid",slug:"burner-hybrid",img:"900-global-burner-hybrid",date:"2022-06",cover:"S62 Hybrid",ct:"Hybrid",finish:"4k Fast",core:"Centroid",cT:"Symmetric",rg:2.530,diff:0.037,mb:null},
+  {id:440,brand:"Storm",bS:"storm",name:"Phaze EX",slug:"phaze-ex",img:"storm-phaze-ex",date:"2022-06",cover:"NRG 2 Pearl",ct:"Pearl",finish:"4k Fast",core:"Velocity",cT:"Symmetric",rg:2.480,diff:0.051,mb:null},
+  {id:441,brand:"Hammer",bS:"hammer",name:"Black Widow Caramel Urethane",slug:"black-widow-caramel-urethane-bgd",img:"hammer-black-widow-caramel-urethane-bgd",date:"2022-05",cover:"BP Urethane Solid",ct:"Urethane",finish:"500/1000/2000 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:442,brand:"Storm",bS:"storm",name:"Epic Crux",slug:"epic-crux",img:"storm-epic-crux",date:"2022-05",cover:"GI-18 Solid",ct:"Solid",finish:"2000 Abralon",core:"Catalyst",cT:"Asymmetric",rg:2.500,diff:0.052,mb:0.017},
+  {id:443,brand:"Radical",bS:"radical",name:"Sneak Attack",slug:"sneak-attack",img:"radical-sneak-attack",date:"2022-05",cover:"MTH-1 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Sneak Attack",cT:"Symmetric",rg:2.544,diff:0.036,mb:null},
+  {id:444,brand:"Columbia 300",bS:"columbia-300",name:"Power Torq Pearl",slug:"power-torq-pearl",img:"columbia-300-power-torq-pearl",date:"2022-05",cover:"ERT Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Torq",cT:"Symmetric",rg:2.489,diff:0.054,mb:null},
+  {id:445,brand:"900 Global",bS:"900-global",name:"Zen Soul",slug:"zen-soul",img:"900-global-zen-soul",date:"2022-05",cover:"S77 Response Hybrid",ct:"Hybrid",finish:"4000 Abralon",core:"Meditate",cT:"Symmetric",rg:2.490,diff:0.051,mb:null},
+  {id:446,brand:"SWAG",bS:"swag",name:"Black Pearl Treasure",slug:"black-pearl-treasure",img:"swag-black-pearl-treasure",date:"2022-05",cover:"XRT 1321 Pearl",ct:"Pearl",finish:"4000 Sanded",core:"OBJET",cT:"Asymmetric",rg:2.578,diff:0.051,mb:0.013},
+  {id:447,brand:"Motiv",bS:"motiv",name:"Blue Tank",slug:"blue-tank",img:"motiv-blue-tank",date:"2022-05",cover:"Frixion M3 Pearl MCP",ct:"MCP",finish:"1000 LSS",core:"Halogen V2",cT:"Symmetric",rg:2.590,diff:0.023,mb:null},
+  {id:448,brand:"900 Global",bS:"900-global",name:"Wolverine Strike",slug:"wolverine-strike",img:"900-global-wolverine-strike",date:"2022-05",cover:"S70 Solid",ct:"Solid",finish:"4000 Abralon",core:"Lacerate 2.0",cT:"Symmetric",rg:2.540,diff:0.053,mb:null},
+  {id:449,brand:"Storm",bS:"storm",name:"Code Master",slug:"code-master",img:"storm-code-master",date:"2022-05",cover:"NeX Pearl",ct:"Pearl",finish:"1500 Polished",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  {id:450,brand:"Roto Grip",bS:"roto-grip",name:"Hyper Attention",slug:"hyper-attention",img:"roto-grip-hyper-attention",date:"2022-05",cover:"Hyper X Solid",ct:"Solid",finish:"2000 Abralon",core:"Momentous",cT:"Asymmetric",rg:2.500,diff:0.053,mb:0.011},
+  {id:451,brand:"Hammer",bS:"hammer",name:"Black Widow Real Monster Solid",slug:"black-widow-real-monster-solid",img:"hammer-black-widow-real-monster-solid",date:"2022-05",cover:"Neoflex 25 Solid",ct:"Solid",finish:"2000 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:452,brand:"Hammer",bS:"hammer",name:"Black Widow Red Pearl Urethane",slug:"black-widow-red-pearl-urethane",img:"hammer-black-widow-red-pearl-urethane",date:"2022-05",cover:"Urethane Pearl",ct:"Urethane",finish:"500/1000/2000 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:453,brand:"Ebonite",bS:"ebonite",name:"Mission Complete",slug:"mission-complete-blackpinkpurple",img:"ebonite-mission-complete-blackpinkpurple",date:"2022-05",cover:"Mission Complete Pearl",ct:"Pearl",finish:"500/1000/2000 Siaair MP",core:"Mission 1.0 w/ Magnetite",cT:"Asymmetric",rg:2.500,diff:0.050,mb:0.013},
+  {id:454,brand:"Track",bS:"track",name:"Kinetic Black Ice",slug:"kinetic-black-ice",img:"track-kinetic-black-ice",date:"2022-04",cover:"QR-7 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Shuttle",cT:"Asymmetric",rg:2.480,diff:0.040,mb:0.005},
+  {id:455,brand:"Ebonite",bS:"ebonite",name:"Envision",slug:"envision",img:"ebonite-envision",date:"2022-04",cover:"GSV-X Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Envision",cT:"Asymmetric",rg:2.501,diff:0.053,mb:0.010},
+  {id:456,brand:"DV8",bS:"dv8",name:"Damn Good Verge Pearl",slug:"damn-good-verge-pearl",img:"dv8-damn-good-verge-pearl",date:"2022-04",cover:"Inciter Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Threshold M.D.",cT:"Symmetric",rg:2.467,diff:0.037,mb:null},
+  {id:457,brand:"Motiv",bS:"motiv",name:"Blue Coral Venom",slug:"blue-coral-venom",img:"motiv-blue-coral-venom",date:"2022-04",cover:"Coercion MFH Hybrid",ct:"Hybrid",finish:"4000 LSS",core:"Gear APG",cT:"Asymmetric",rg:2.470,diff:0.036,mb:0.013},
+  {id:458,brand:"Storm",bS:"storm",name:"!Q Tour Blue",slug:"q-tour-blue",img:"storm-iq-tour-blue",date:"2022-04",cover:"R2X Solid",ct:"Solid",finish:"1500 Polished",core:"C3 Centripetal Control",cT:"Symmetric",rg:2.490,diff:0.029,mb:null},
+  {id:459,brand:"Storm",bS:"storm",name:"Ghost Lock",slug:"ghost-lock",img:"storm-ghost-lock",date:"2022-04",cover:"NRG 2 Solid",ct:"Solid",finish:"1500 Polished",core:"RAD-X",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:460,brand:"Columbia 300",bS:"columbia-300",name:"Speed",slug:"speed",img:"columbia-300-speed",date:"2022-03",cover:"Formula 1 Hybrid",ct:"Hybrid",finish:"500/1500 Siaair MP",core:"Shifter",cT:"Asymmetric",rg:2.478,diff:0.050,mb:0.015},
+  {id:461,brand:"Brunswick",bS:"brunswick",name:"Defender",slug:"defender",img:"brunswick-defender",date:"2022-03",cover:"ACT 3.0 Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Portal X",cT:"Asymmetric",rg:2.473,diff:0.054,mb:0.015},
+  {id:462,brand:"Radical",bS:"radical",name:"Bigfoot",slug:"bigfoot",img:"radical-bigfoot",date:"2022-03",cover:"TP-1+ Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Bigfoot",cT:"Symmetric",rg:2.468,diff:0.053,mb:null},
+  {id:463,brand:"Radical",bS:"radical",name:"Conspiracy Scheme",slug:"conspiracy-scheme",img:"radical-conspiracy-scheme",date:"2022-03",cover:"MOtion Magic Solid",ct:"Solid",finish:"500 Siaair + Compound",core:"Conspiracy",cT:"Asymmetric",rg:2.487,diff:0.056,mb:0.021},
+  {id:464,brand:"900 Global",bS:"900-global",name:"Dream Shift",slug:"dream-shift",img:"900-global-dream-shift",date:"2022-03",cover:"75M Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Identity",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.024},
+  {id:465,brand:"Hammer",bS:"hammer",name:"3-D Offset Red Solid",slug:"3-d-offset-red-solid",img:"hammer-3-d-offset-red-solid",date:"2022-03",cover:"Aggression NE Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"High Rev Offset",cT:"Asymmetric",rg:2.489,diff:0.053,mb:0.008},
+  {id:466,brand:"Columbia 300",bS:"columbia-300",name:"Momentum",slug:"momentum-blacksilvernavy",img:"columbia-300-momentum-blacksilvernavy",date:"2022-03",cover:"Reflex Hybrid 2.0R",ct:"Hybrid",finish:"500/1000/1500 Siaair MP",core:"Next 3.0",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.018},
+  {id:467,brand:"Roto Grip",bS:"roto-grip",name:"Gem",slug:"gem",img:"roto-grip-gem",date:"2022-03",cover:"MicroTrax Solid",ct:"Particle",finish:"2000 Abralon",core:"Defiant LRG",cT:"Asymmetric",rg:2.470,diff:0.053,mb:0.016},
+  {id:468,brand:"Motiv",bS:"motiv",name:"Mythic Jackal",slug:"mythic-jackal",img:"motiv-mythic-jackal",date:"2022-03",cover:"Infusion HV 2:1 Hybrid",ct:"Hybrid",finish:"5000 LSP",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:469,brand:"Storm",bS:"storm",name:"Shadow Lock",slug:"shadow-lock",img:"storm-shadow-lock",date:"2022-03",cover:"R2S Pearl",ct:"Pearl",finish:"1500 Polished",core:"RAD-X",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.018},
+  {id:470,brand:"Storm",bS:"storm",name:"Marvel Maxx Tour",slug:"marvel-maxx-tour",img:"storm-marvel-maxx-tour",date:"2022-03",cover:"NeX Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Centripetal",cT:"Symmetric",rg:2.480,diff:0.050,mb:null},
+  {id:471,brand:"Storm",bS:"storm",name:"Pure Physix",slug:"pure-physix",img:"storm-pure-physix",date:"2022-03",cover:"ReX Pearl",ct:"Pearl",finish:"1500 Polished",core:"Atomic",cT:"Asymmetric",rg:2.480,diff:0.053,mb:0.017},
+  // ── Page 8: Nov 2021 – Jul 2021 ──────────────────────────
+  {id:472,brand:"Roto Grip",bS:"roto-grip",name:"Rubicon UC3",slug:"rubicon-uc3",img:"roto-grip-rubicon-uc3",date:"2021-11",cover:"Tour-ethane Pearl",ct:"Urethane",finish:"1000 Abralon",core:"Rondure",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.011},
+  {id:473,brand:"Roto Grip",bS:"roto-grip",name:"IDOL Helios",slug:"idol-helios",img:"roto-grip-idol-helios",date:"2021-11",cover:"XtremeTrax Solid",ct:"Solid",finish:"2000 Abralon",core:"Ikon",cT:"Symmetric",rg:2.490,diff:0.052,mb:null},
+  {id:474,brand:"Storm",bS:"storm",name:"!Q Tour/U",slug:"iq-tour-u",img:"storm-iq-tour-u",date:"2021-11",cover:"Uremax Urethane Solid",ct:"Urethane",finish:"1000 Abralon",core:"C3 Centripetal Control",cT:"Symmetric",rg:2.490,diff:0.029,mb:null},
+  {id:475,brand:"Track",bS:"track",name:"Kinetic EX",slug:"kinetic-ex",img:"track-kinetic-ex",date:"2021-11",cover:"QR-7 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Polish",core:"Shuttle",cT:"Asymmetric",rg:2.480,diff:0.040,mb:0.005},
+  {id:476,brand:"Brunswick",bS:"brunswick",name:"Quantum Evo Solid",slug:"quantum-evo-solid",img:"brunswick-quantum-evo-solid",date:"2021-10",cover:"Evolution Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"QCS-12",cT:"Asymmetric",rg:2.502,diff:0.048,mb:0.012},
+  {id:477,brand:"Brunswick",bS:"brunswick",name:"Quantum Evo Pearl",slug:"quantum-evo-pearl",img:"brunswick-quantum-evo-pearl",date:"2021-10",cover:"Evolution Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"QCS-24",cT:"Asymmetric",rg:2.511,diff:0.053,mb:0.024},
+  {id:478,brand:"DV8",bS:"dv8",name:"Medusa",slug:"medusa",img:"dv8-medusa",date:"2021-10",cover:"Inciter Max Flip Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Medusa",cT:"Asymmetric",rg:2.507,diff:0.048,mb:0.011},
+  {id:479,brand:"Radical",bS:"radical",name:"Payback",slug:"payback",img:"radical-payback",date:"2021-10",cover:"Ai-27 Pearl Plus",ct:"Pearl",finish:"500/1000/1500 Siaair MP",core:"Breakaway / Payback",cT:"Symmetric",rg:2.528,diff:0.041,mb:null},
+  {id:480,brand:"Radical",bS:"radical",name:"Trail Blazer",slug:"trail-blazer",img:"radical-trail-blazer",date:"2021-10",cover:"MOtion Magic Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"Trail Blazer",cT:"Asymmetric",rg:2.484,diff:0.052,mb:0.020},
+  {id:481,brand:"Hammer",bS:"hammer",name:"Black Widow Black Solid Urethane",slug:"black-widow-black-solid-urethane",img:"hammer-black-widow-black-solid-urethane",date:"2021-10",cover:"Performance Urethane Solid",ct:"Urethane",finish:"1000 Siaair",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:482,brand:"Motiv",bS:"motiv",name:"Pride",slug:"pride",img:"motiv-pride",date:"2021-10",cover:"Coercion UCS Solid",ct:"Solid",finish:"4000 LSS",core:"Dominion",cT:"Asymmetric",rg:2.500,diff:0.042,mb:0.010},
+  {id:483,brand:"Roto Grip",bS:"roto-grip",name:"Attention Grip",slug:"attention-grip",img:"roto-grip-attention-grip",date:"2021-10",cover:"MicroTrax Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Momentous",cT:"Asymmetric",rg:2.500,diff:0.053,mb:0.011},
+  {id:484,brand:"Storm",bS:"storm",name:"X Gate",slug:"x-gate",img:"storm-x-gate",date:"2021-10",cover:"TractionX7 Hybrid",ct:"Hybrid",finish:"2000 Abralon",core:"Ignition",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.019},
+  {id:485,brand:"Columbia 300",bS:"columbia-300",name:"Power Torq",slug:"power-torq",img:"columbia-300-power-torq",date:"2021-09",cover:"ERT Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Torq",cT:"Symmetric",rg:2.489,diff:0.054,mb:null},
+  {id:486,brand:"Hammer",bS:"hammer",name:"Obsession Tour Pearl",slug:"obsession-tour-pearl",img:"hammer-obsession-tour-pearl",date:"2021-09",cover:"TourV2 Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Obsession Tour",cT:"Asymmetric",rg:2.469,diff:0.034,mb:0.013},
+  {id:487,brand:"Hammer",bS:"hammer",name:"Infamous",slug:"infamous",img:"hammer-infamous",date:"2021-09",cover:"Envy Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Infamous",cT:"Symmetric",rg:2.559,diff:0.052,mb:null},
+  {id:488,brand:"Ebonite",bS:"ebonite",name:"Polaris",slug:"polaris",img:"ebonite-polaris",date:"2021-09",cover:"GSV-3 Solid",ct:"Solid",finish:"500/1500 Siaair MP",core:"Polaris",cT:"Asymmetric",rg:2.475,diff:0.048,mb:0.018},
+  {id:489,brand:"Storm",bS:"storm",name:"Trend 2",slug:"trend-2",img:"storm-trend-2",date:"2021-09",cover:"NRG Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Piston LD",cT:"Symmetric",rg:2.540,diff:0.041,mb:null},
+  {id:490,brand:"Hammer",bS:"hammer",name:"Black Widow 2.0 Alpha",slug:"black-widow-20-alpha",img:"hammer-black-widow-20-alpha",date:"2021-09",cover:"Aggression NE Hybrid",ct:"Hybrid",finish:"500/1000 Siaair + Compound",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:491,brand:"Motiv",bS:"motiv",name:"Supra Enzo",slug:"supra-enzo",img:"motiv-supra-enzo",date:"2021-09",cover:"Infusion Hybrid",ct:"Hybrid",finish:"5500 LSP",core:"High Impulse",cT:"Symmetric",rg:2.570,diff:0.050,mb:null},
+  {id:492,brand:"Storm",bS:"storm",name:"Crucial Phaze",slug:"crucial-phaze",img:"storm-crucial-phaze",date:"2021-08",cover:"R3S Pearl",ct:"Pearl",finish:"1500 Polished",core:"Velocity",cT:"Symmetric",rg:2.480,diff:0.051,mb:null},
+  {id:493,brand:"Roto Grip",bS:"roto-grip",name:"RST X-2",slug:"rst-x-2",img:"roto-grip-rst-x-2",date:"2021-08",cover:"eTrax Plus Pearl",ct:"Pearl",finish:"1500 Polished",core:"Roto Star Tour (RST)",cT:"Asymmetric",rg:2.530,diff:0.053,mb:0.016},
+  {id:494,brand:"Roto Grip",bS:"roto-grip",name:"Hyped Pearl",slug:"hyped-pearl",img:"roto-grip-hyped-pearl",date:"2021-08",cover:"VTC Pearl",ct:"Pearl",finish:"1500 Polished",core:"Hyped",cT:"Symmetric",rg:2.520,diff:0.036,mb:null},
+  {id:495,brand:"Roto Grip",bS:"roto-grip",name:"Hyped Hybrid",slug:"hyped-hybrid",img:"roto-grip-hyped-hybrid",date:"2021-08",cover:"VTC Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Hyped",cT:"Symmetric",rg:2.520,diff:0.036,mb:null},
+  {id:496,brand:"Track",bS:"track",name:"Legion Pearl",slug:"legion-pearl",img:"track-legion-pearl",date:"2021-08",cover:"Prime Response Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"LT-2",cT:"Asymmetric",rg:2.500,diff:0.046,mb:0.011},
+  {id:497,brand:"Brunswick",bS:"brunswick",name:"Zenith Hybrid",slug:"zenith-hybrid",img:"brunswick-zenith-hybrid",date:"2021-08",cover:"A.X.H. Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair MP",core:"Zenith",cT:"Asymmetric",rg:2.485,diff:0.052,mb:0.019},
+  {id:498,brand:"Motiv",bS:"motiv",name:"Top Thrill",slug:"top-thrill",img:"motiv-top-thrill",date:"2021-08",cover:"Turmoil XP Pearl",ct:"Pearl",finish:"5500 LSP",core:"Halogen V2",cT:"Symmetric",rg:2.590,diff:0.023,mb:null},
+  {id:499,brand:"900 Global",bS:"900-global",name:"Zen Master",slug:"zen-master",img:"900-global-zen-master",date:"2021-08",cover:"S77 Response Solid",ct:"Solid",finish:"3000 Abralon",core:"Meditate",cT:"Symmetric",rg:2.490,diff:0.051,mb:null},
+  {id:500,brand:"Radical",bS:"radical",name:"Intel Pearl SE",slug:"intel-pearl-special-edition",img:"radical-intel-pearl-special-edition",date:"2021-08",cover:"TP-1 Pearl",ct:"Pearl",finish:"500/1000 Siaair + Compound",core:"Intel",cT:"Symmetric",rg:2.483,diff:0.035,mb:null},
+  {id:501,brand:"Radical",bS:"radical",name:"Informer",slug:"informer",img:"radical-informer",date:"2021-08",cover:"S.H.A.R.P./TS-1 Solid",ct:"Solid",finish:"500/1000/1500 Siaair MP",core:"Informer",cT:"Asymmetric",rg:2.477,diff:0.051,mb:0.019},
+  {id:502,brand:"SWAG",bS:"swag",name:"Incredible X",slug:"incredible-x",img:"swag-incredible-x",date:"2021-08",cover:"USY 1 Pearl",ct:"Pearl",finish:"1000 Polished",core:"Incredible",cT:"Asymmetric",rg:2.514,diff:0.054,mb:0.021},
+  {id:503,brand:"Storm",bS:"storm",name:"Hy-Road Wave",slug:"hy-road-wave",img:"storm-hy-road-wave",date:"2021-08",cover:"NRG Pearl",ct:"Pearl",finish:"1500 Polished",core:"Inverted Fe2",cT:"Symmetric",rg:2.570,diff:0.046,mb:null},
+  {id:504,brand:"Roto Grip",bS:"roto-grip",name:"IDOL Splash",slug:"idol-splash",img:"roto-grip-idol-splash",date:"2021-08",cover:"eTrax Pearl",ct:"Pearl",finish:"2000 Abralon",core:"Ikon",cT:"Symmetric",rg:2.490,diff:0.052,mb:null},
+  {id:505,brand:"Hammer",bS:"hammer",name:"Scorpion",slug:"scorpion",img:"hammer-scorpion",date:"2021-07",cover:"Semtex Hybrid",ct:"Hybrid",finish:"500/1000/2000 Siaair MP",core:"LED 2.0",cT:"Symmetric",rg:2.520,diff:0.043,mb:null},
+  {id:506,brand:"Hammer",bS:"hammer",name:"Web Pearl (2021)",slug:"web-pearl-2021-jadesmoke",img:"hammer-web-pearl-2021-jadesmoke",date:"2021-07",cover:"Aggression Pearl",ct:"Pearl",finish:"500/1000/1500 Siaair + Compound",core:"Spheroid",cT:"Symmetric",rg:2.480,diff:0.048,mb:null},
+  {id:507,brand:"Brunswick",bS:"brunswick",name:"Stellar",slug:"stellar",img:"brunswick-stellar",date:"2021-07",cover:"Activator Plus 2.0 Hybrid",ct:"Hybrid",finish:"500/1000/1500 Siaair + Compound",core:"I-Block",cT:"Symmetric",rg:2.540,diff:0.052,mb:null},
+  {id:508,brand:"Roto Grip",bS:"roto-grip",name:"Hustle Wine",slug:"hustle-wine",img:"roto-grip-hustle-wine",date:"2021-07",cover:"VTC Pearl",ct:"Pearl",finish:"1500 Polished",core:"Hustle",cT:"Symmetric",rg:2.530,diff:0.030,mb:null},
+  {id:509,brand:"Roto Grip",bS:"roto-grip",name:"Hustle Camo",slug:"hustle-camo",img:"roto-grip-hustle-camo",date:"2021-07",cover:"VTC Solid",ct:"Solid",finish:"1500 Polished",core:"Hustle",cT:"Symmetric",rg:2.530,diff:0.030,mb:null},
+  {id:510,brand:"Storm",bS:"storm",name:"Electrify Solid",slug:"electrify-solid",img:"storm-electrify-solid",date:"2021-07",cover:"Reactor Solid",ct:"Solid",finish:"1500 Polished",core:"Circuit",cT:"Symmetric",rg:2.510,diff:0.030,mb:null},
+  // ── Page 9: Jan 2021 – Jul 2020 ──────────────────────────
+  {id:511,brand:"Roto Grip",bS:"roto-grip",name:"Rubicon UC2",slug:"rubicon-uc2",img:"roto-grip-rubicon-uc2",date:"2021-01",cover:"eTrax Pearl",ct:"Pearl",finish:"1500 Polished",core:"Rondure",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.011},
+  {id:512,brand:"Brunswick",bS:"brunswick",name:"Knock Out",slug:"knock-out",img:"brunswick-knock-out",date:"2021-01",cover:"Savvy Hook 3.0 Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Melee Low RG",cT:"Symmetric",rg:2.487,diff:0.050,mb:null},
+  {id:513,brand:"SWAG",bS:"swag",name:"Big Bro Jacked",slug:"big-bro-jacked",img:"swag-big-bro-jacked",date:"2020-12",cover:"Reverie 4 ANT-iVi Solid",ct:"Solid",finish:"4000 Sanded",core:"Dominance",cT:"Asymmetric",rg:2.484,diff:0.054,mb:0.021},
+  {id:514,brand:"Storm",bS:"storm",name:"Bite SE",slug:"bite-se",img:"storm-bite-se",date:"2020-12",cover:"TractionX7 Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"G2",cT:"Asymmetric",rg:2.470,diff:0.058,mb:0.028},
+  {id:515,brand:"Motiv",bS:"motiv",name:"Fatal Venom",slug:"fatal-venom",img:"motiv-fatal-venom",date:"2020-12",cover:"Infusion Pearl",ct:"Pearl",finish:"5500 LSP",core:"Gear",cT:"Symmetric",rg:2.480,diff:0.034,mb:null},
+  {id:516,brand:"Motiv",bS:"motiv",name:"Forge Flare",slug:"forge-flare",img:"motiv-forge-flare",date:"2020-12",cover:"Coercion MXC Solid",ct:"Solid",finish:"2000 LSS",core:"Detonator",cT:"Symmetric",rg:2.470,diff:0.055,mb:null},
+  {id:517,brand:"Storm",bS:"storm",name:"Proton PhysiX",slug:"proton-physix",img:"storm-proton-physix",date:"2020-12",cover:"NeX Solid",ct:"Solid",finish:"2000 Abralon",core:"Atomic",cT:"Asymmetric",rg:2.480,diff:0.053,mb:0.017},
+  {id:518,brand:"Storm",bS:"storm",name:"Phaze Flow",slug:"phaze-flow",img:"storm-phaze-flow",date:"2020-12",cover:"GI-18 Solid",ct:"Solid",finish:"3000 Abralon",core:"Velocity",cT:"Symmetric",rg:2.480,diff:0.051,mb:null},
+  {id:519,brand:"Roto Grip",bS:"roto-grip",name:"Hustle Hunter",slug:"hustle-hunter",img:"roto-grip-hustle-hunter",date:"2020-12",cover:"VTC-S20 Solid",ct:"Solid",finish:"3000 Abralon",core:"Hustle",cT:"Symmetric",rg:2.530,diff:0.030,mb:null},
+  {id:520,brand:"Storm",bS:"storm",name:"Marvel Maxx Impact",slug:"marvel-maxx-impact",img:"storm-marvel-maxx-impact",date:"2020-12",cover:"NeX Solid",ct:"Solid",finish:"1500 Polished",core:"Centripetal",cT:"Symmetric",rg:2.480,diff:0.050,mb:null},
+  {id:521,brand:"Storm",bS:"storm",name:"Hy-Road Gold Pearl",slug:"hy-road-gold-pearl",img:"storm-hy-road-gold-pearl",date:"2020-12",cover:"R2X Pearl",ct:"Pearl",finish:"1500 Polished",core:"Inverted Fe2",cT:"Symmetric",rg:2.570,diff:0.046,mb:null},
+  {id:522,brand:"Storm",bS:"storm",name:"Solar Parallax",slug:"solar-parallax",img:"storm-solar-parallax",date:"2020-11",cover:"NRG 3 Pearl",ct:"Pearl",finish:"1500 Polished",core:"Aeroflo",cT:"Asymmetric",rg:2.520,diff:0.054,mb:0.019},
+  {id:523,brand:"Roto Grip",bS:"roto-grip",name:"RST X-1",slug:"rst-x-1",img:"roto-grip-rst-x-1",date:"2020-11",cover:"MicroTrax Hybrid",ct:"Hybrid",finish:"3000 Abralon",core:"Roto Star Tour (RST)",cT:"Asymmetric",rg:2.530,diff:0.053,mb:0.016},
+  {id:524,brand:"900 Global",bS:"900-global",name:"Ordnance C4",slug:"ordnance-c4",img:"900-global-ordnance-c4",date:"2020-11",cover:"S70 Hybrid",ct:"Hybrid",finish:"4000 Abralon",core:"Shrapnel 2.0",cT:"Symmetric",rg:2.480,diff:0.042,mb:null},
+  {id:525,brand:"900 Global",bS:"900-global",name:"Zen",slug:"zen",img:"900-global-zen",date:"2020-11",cover:"S77 Response Pearl",ct:"Pearl",finish:"1500 Polished",core:"Meditate",cT:"Symmetric",rg:2.490,diff:0.051,mb:null},
+  {id:526,brand:"Radical",bS:"radical",name:"Incognito",slug:"incognito",img:"radical-incognito",date:"2020-11",cover:"S.H.A.R.P. Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Incognito",cT:"Asymmetric",rg:2.487,diff:0.053,mb:0.017},
+  {id:527,brand:"Hammer",bS:"hammer",name:"Black Widow 2.0",slug:"black-widow-20",img:"hammer-black-widow-20",date:"2020-11",cover:"Aggression Solid",ct:"Solid",finish:"500/1000/2000 Siaair MP",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:528,brand:"Brunswick",bS:"brunswick",name:"Hero Solid",slug:"hero-solid",img:"brunswick-hero-solid",date:"2020-11",cover:"Activator Plus 2.0 Solid",ct:"Solid",finish:"500/1000 Siaair MP",core:"Contra",cT:"Symmetric",rg:2.474,diff:0.047,mb:null},
+  {id:529,brand:"Brunswick",bS:"brunswick",name:"Zenith",slug:"zenith",img:"brunswick-zenith",date:"2020-11",cover:"A.X.H. Solid",ct:"Solid",finish:"500/1000 Siaair MP",core:"Zenith",cT:"Asymmetric",rg:2.485,diff:0.052,mb:0.019},
+  {id:530,brand:"Roto Grip",bS:"roto-grip",name:"Attention Black Pearl",slug:"attention-black-pearl",img:"roto-grip-attention-black-pearl",date:"2020-10",cover:"Hyper Response Pearl",ct:"Pearl",finish:"1500 Polished",core:"Momentous",cT:"Asymmetric",rg:2.500,diff:0.053,mb:0.011},
+  {id:531,brand:"Ebonite",bS:"ebonite",name:"Omni Hybrid",slug:"omni-hybrid",img:"ebonite-omni-hybrid",date:"2020-10",cover:"GSV 2.0 Hybrid",ct:"Hybrid",finish:"500/1000 Siaair + Compound",core:"Omni",cT:"Asymmetric",rg:2.501,diff:0.050,mb:0.013},
+  {id:532,brand:"Storm",bS:"storm",name:"Axiom Pearl",slug:"axiom-pearl",img:"storm-axiom-pearl",date:"2020-10",cover:"NeX Pearl",ct:"Pearl",finish:"1500 Polished",core:"Orbital",cT:"Symmetric",rg:2.480,diff:0.050,mb:null},
+  {id:533,brand:"Storm",bS:"storm",name:"PhysiX Power Elite Pro",slug:"physix-power-elite-pro-model",img:"storm-physix-power-elite-pro-model",date:"2020-09",cover:"NRG Pro Pearl",ct:"Pearl",finish:"1500 Polished",core:"Atomic",cT:"Asymmetric",rg:2.480,diff:0.053,mb:0.017},
+  {id:534,brand:"Motiv",bS:"motiv",name:"Jackal Flash",slug:"jackal-flash",img:"motiv-jackal-flash",date:"2020-09",cover:"Infusion HV Pearl",ct:"Pearl",finish:"5000 LSP",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:535,brand:"Roto Grip",bS:"roto-grip",name:"Rubicon",slug:"rubicon",img:"roto-grip-rubicon",date:"2020-09",cover:"eTrax-S20 Solid",ct:"Solid",finish:"3000 Abralon",core:"Rondure",cT:"Asymmetric",rg:2.490,diff:0.052,mb:0.011},
+  {id:536,brand:"Brunswick",bS:"brunswick",name:"Prism Warp Hybrid",slug:"prism-warp-hybrid",img:"brunswick-prism-warp-hybrid",date:"2020-09",cover:"ACT 2.0 Hybrid",ct:"Hybrid",finish:"500/1000 Siaair + Compound",core:"Portal",cT:"Asymmetric",rg:2.465,diff:0.051,mb:0.018},
+  {id:537,brand:"Storm",bS:"storm",name:"Axiom Tour",slug:"axiom-tour",img:"storm-axiom-tour",date:"2020-09",cover:"NeX Pearl",ct:"Pearl",finish:"1500 Polished",core:"Orbital",cT:"Symmetric",rg:2.480,diff:0.050,mb:null},
+  {id:538,brand:"SWAG",bS:"swag",name:"Graffiti I-Con",slug:"graffiti-i-con",img:"swag-graffiti-i-con",date:"2020-09",cover:"Reverie 4 ANT-iViT Hybrid",ct:"Hybrid",finish:"4000 Sanded",core:"Ballistic",cT:"Asymmetric",rg:2.491,diff:0.053,mb:0.033},
+  {id:539,brand:"900 Global",bS:"900-global",name:"Afterburner",slug:"afterburner-various-colors",img:"900-global-afterburner-various-colors",date:"2020-08",cover:"S62 Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Ignition",cT:"Symmetric",rg:2.550,diff:0.038,mb:null},
+  {id:540,brand:"900 Global",bS:"900-global",name:"Honey Badger Revival",slug:"honey-badger-revival",img:"900-global-honey-badger-revival",date:"2020-08",cover:"S70 Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Grapnel 2.0",cT:"Asymmetric",rg:2.540,diff:0.048,mb:0.012},
+  {id:541,brand:"900 Global",bS:"900-global",name:"Aspect",slug:"aspect",img:"900-global-aspect",date:"2020-08",cover:"S77 Response Solid",ct:"Solid",finish:"3000 Abralon",core:"Reflector Symmetric",cT:"Symmetric",rg:2.510,diff:0.048,mb:null},
+  {id:542,brand:"900 Global",bS:"900-global",name:"Volatility Torque",slug:"volatility-torque",img:"900-global-volatility-torque",date:"2020-08",cover:"S84 Response Pearl",ct:"Pearl",finish:"1500 Polished",core:"Volatility Asymmetric",cT:"Asymmetric",rg:2.490,diff:0.050,mb:0.014},
+  {id:543,brand:"Storm",bS:"storm",name:"Trend",slug:"trend",img:"storm-trend",date:"2020-08",cover:"R2S Pearl",ct:"Pearl",finish:"1500 Polished",core:"Piston",cT:"Symmetric",rg:2.520,diff:0.049,mb:null},
+  {id:544,brand:"Storm",bS:"storm",name:"Parallax",slug:"parallax",img:"storm-parallax",date:"2020-08",cover:"TractionX7 Hybrid",ct:"Hybrid",finish:"1500 Polished",core:"Aeroflo",cT:"Asymmetric",rg:2.520,diff:0.054,mb:0.019},
+  {id:545,brand:"SWAG",bS:"swag",name:"Big Bro Burn-Up",slug:"big-bro-burn-up",img:"swag-big-bro-burn-up",date:"2020-07",cover:"Reverie Pearl Urethane",ct:"Urethane",finish:"2000 Sanded",core:"Dominance",cT:"Asymmetric",rg:2.484,diff:0.054,mb:0.021},
+  {id:546,brand:"Brunswick",bS:"brunswick",name:"Igniter Pearl",slug:"igniter-pearl",img:"brunswick-igniter-pearl",date:"2020-07",cover:"Relativity 3.0 Pearl",ct:"Pearl",finish:"500/1000 Siaair + Compound",core:"Brink",cT:"Symmetric",rg:2.508,diff:0.043,mb:null},
+  // ── Page 10: Dec 2019 – May 2019 ─────────────────────────
+  {id:547,brand:"900 Global",bS:"900-global",name:"Honey Badger Extreme Pearl",slug:"honey-badger-extreme-pearl",img:"900-global-honey-badger-extreme-pearl",date:"2019-12",cover:"S74R Pearl",ct:"Pearl",finish:"1500 Polished",core:"Grapnel",cT:"Asymmetric",rg:2.570,diff:0.041,mb:0.008},
+  {id:548,brand:"900 Global",bS:"900-global",name:"Honey Badger Extreme Solid",slug:"honey-badger-extreme-solid",img:"900-global-honey-badger-extreme-solid",date:"2019-12",cover:"S74R Solid",ct:"Solid",finish:"2000 Abralon",core:"Grapnel",cT:"Asymmetric",rg:2.570,diff:0.041,mb:0.008},
+  {id:549,brand:"Motiv",bS:"motiv",name:"Jackal Assault",slug:"jackal-assault",img:"motiv-jackal-assault",date:"2019-12",cover:"Coercion HFS Solid",ct:"Solid",finish:"2000 LSS",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:550,brand:"Storm",bS:"storm",name:"Sure Domination",slug:"sure-domination",img:"storm-sure-domination",date:"2019-12",cover:"NRG Pearl",ct:"Pearl",finish:"1500 Polished",core:"RAD+",cT:"Asymmetric",rg:2.490,diff:0.047,mb:0.026},
+  {id:551,brand:"Motiv",bS:"motiv",name:"Supra",slug:"supra",img:"motiv-supra",date:"2019-11",cover:"Infusion Pearl",ct:"Pearl",finish:"5500 LSP",core:"High Impulse",cT:"Symmetric",rg:2.570,diff:0.050,mb:null},
+  {id:552,brand:"Motiv",bS:"motiv",name:"Tank Blitz",slug:"tank-blitz",img:"motiv-tank-blitz",date:"2019-11",cover:"Frixion+ MCP",ct:"MCP",finish:"2000 LSS",core:"Gear",cT:"Symmetric",rg:2.480,diff:0.034,mb:null},
+  {id:553,brand:"Brunswick",bS:"brunswick",name:"Vintage Phantom",slug:"vintage-phantom",img:"brunswick-vintage-phantom",date:"2019-11",cover:"Savvy Hook 2.0 Solid",ct:"Solid",finish:"360/1000 Abralon",core:"Cynosure",cT:"Symmetric",rg:2.471,diff:0.032,mb:null},
+  {id:554,brand:"Storm",bS:"storm",name:"Code One",slug:"code-one",img:"storm-code-one",date:"2019-11",cover:"R4S Pearl",ct:"Pearl",finish:"1500 Polished",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  {id:555,brand:"Storm",bS:"storm",name:"Gravity Evolve",slug:"gravity-evolve",img:"storm-gravity-evolve",date:"2019-10",cover:"SPEC Solid",ct:"Solid",finish:"2000 Abralon",core:"Shape-Lock HD",cT:"Asymmetric",rg:2.480,diff:0.052,mb:0.020},
+  {id:556,brand:"Storm",bS:"storm",name:"All-Road",slug:"all-road",img:"storm-all-road",date:"2019-10",cover:"NRG Hybrid",ct:"Hybrid",finish:"4000 Abralon",core:"Inverted Fe2",cT:"Symmetric",rg:2.570,diff:0.046,mb:null},
+  {id:557,brand:"Roto Grip",bS:"roto-grip",name:"Hustle Up",slug:"hustle-up",img:"roto-grip-hustle-up",date:"2019-10",cover:"Thrilled Solid",ct:"Solid",finish:"4000 Abralon",core:"Hustle",cT:"Symmetric",rg:2.530,diff:0.030,mb:null},
+  {id:558,brand:"Motiv",bS:"motiv",name:"Forge Fire",slug:"forge-fire",img:"motiv-forge-fire",date:"2019-10",cover:"Infusion Hybrid",ct:"Hybrid",finish:"4000 LSS",core:"Detonator",cT:"Symmetric",rg:2.470,diff:0.055,mb:null},
+  {id:559,brand:"Brunswick",bS:"brunswick",name:"Prism Solid",slug:"prism-solid",img:"brunswick-prism-solid",date:"2019-10",cover:"ACT Solid",ct:"Solid",finish:"360/500/2000 Siaair MP",core:"Portal",cT:"Asymmetric",rg:2.465,diff:0.051,mb:0.018},
+  {id:560,brand:"Brunswick",bS:"brunswick",name:"Prism Hybrid",slug:"prism-hybrid",img:"brunswick-prism-hybrid",date:"2019-10",cover:"ACT Hybrid",ct:"Hybrid",finish:"500 Siaair + Compound",core:"Portal",cT:"Asymmetric",rg:2.465,diff:0.051,mb:0.018},
+  {id:561,brand:"SWAG",bS:"swag",name:"Big Bro Flexin",slug:"big-bro-flexin",img:"swag-big-bro-flexin",date:"2019-10",cover:"Reverie 3 Solid",ct:"Solid",finish:"2000 Sanded",core:"Dominance",cT:"Asymmetric",rg:2.484,diff:0.054,mb:0.021},
+  {id:562,brand:"900 Global",bS:"900-global",name:"Money Badger Tour",slug:"money-badger-tour",img:"900-global-money-badger-tour",date:"2019-09",cover:"S78R Solid",ct:"Solid",finish:"2000 Abralon",core:"Inverted Grapnel",cT:"Asymmetric",rg:2.570,diff:0.044,mb:0.008},
+  {id:563,brand:"900 Global",bS:"900-global",name:"Money Badger",slug:"money-badger",img:"900-global-money-badger",date:"2019-09",cover:"S71 Pearl",ct:"Pearl",finish:"1500 Polished",core:"Inverted Grapnel",cT:"Asymmetric",rg:2.570,diff:0.044,mb:0.008},
+  {id:564,brand:"SWAG",bS:"swag",name:"Joker",slug:"joker",img:"swag-joker",date:"2019-09",cover:"Dazzler Solid",ct:"Solid",finish:"2000 Sanded",core:"Grinder V2",cT:"Symmetric",rg:2.493,diff:0.061,mb:null},
+  {id:565,brand:"Ebonite",bS:"ebonite",name:"Game Breaker 3 Black/Blue",slug:"game-breaker-3-blackblue",img:"ebonite-game-breaker-3-blackblue",date:"2019-09",cover:"GB 12.0 Hybrid",ct:"Hybrid",finish:"500/1000 Abralon + Polish",core:"Enhanced V2",cT:"Symmetric",rg:2.480,diff:0.048,mb:null},
+  {id:566,brand:"Motiv",bS:"motiv",name:"Rogue Assassin",slug:"rogue-assassin",img:"motiv-rogue-assassin",date:"2019-09",cover:"Coercion HFS Solid",ct:"Solid",finish:"3000 LSS",core:"Sigma",cT:"Symmetric",rg:2.470,diff:0.047,mb:null},
+  {id:567,brand:"Brunswick",bS:"brunswick",name:"Vapor Zone Solid",slug:"vapor-zone-solid",img:"brunswick-vapor-zone-solid",date:"2019-08",cover:"Activator Plus 2.0 Solid",ct:"Solid",finish:"500/2000 Siaair MP",core:"Zone Asymmetric",cT:"Asymmetric",rg:2.478,diff:0.048,mb:0.017},
+  {id:568,brand:"Storm",bS:"storm",name:"Pro-Motion",slug:"pro-motion",img:"storm-pro-motion",date:"2019-07",cover:"SPEC Solid",ct:"Solid",finish:"2000 Abralon",core:"Piston",cT:"Symmetric",rg:2.520,diff:0.049,mb:null},
+  {id:569,brand:"Motiv",bS:"motiv",name:"Ripcord",slug:"ripcord",img:"motiv-ripcord",date:"2019-07",cover:"Infusion Solid",ct:"Solid",finish:"5000 LSP",core:"Oblivion",cT:"Symmetric",rg:2.530,diff:0.047,mb:null},
+  {id:570,brand:"Pyramid",bS:"pyramid",name:"Blood Moon Infinity",slug:"blood-moon-infinity",img:"pyramid-blood-moon-infinity",date:"2019-07",cover:"GPS Navigational Hybrid",ct:"Hybrid",finish:"2000 Abralon",core:"SG 19.5 Dual Density",cT:"Asymmetric",rg:2.480,diff:0.039,mb:0.012},
+  {id:571,brand:"Hammer",bS:"hammer",name:"Rip'D Survivor Edition",slug:"ripd-survivor-edition",img:"hammer-ripd-survivor-edition",date:"2019-07",cover:"Aggression Pearl CFI",ct:"Pearl",finish:"500/1000 Abralon + Polish",core:"Rip'D",cT:"Asymmetric",rg:2.480,diff:0.054,mb:0.014},
+  {id:572,brand:"900 Global",bS:"900-global",name:"Ordnance Pearl",slug:"ordnance-pearl",img:"900-global-ordnance-pearl",date:"2019-07",cover:"S70 Pearl",ct:"Pearl",finish:"1500 Polished",core:"Shrapnel",cT:"Symmetric",rg:2.470,diff:0.043,mb:null},
+  {id:573,brand:"900 Global",bS:"900-global",name:"Ordnance",slug:"ordnance",img:"900-global-ordnance",date:"2019-07",cover:"S70 Solid",ct:"Solid",finish:"4000 Abralon",core:"Shrapnel",cT:"Symmetric",rg:2.470,diff:0.043,mb:null},
+  {id:574,brand:"900 Global",bS:"900-global",name:"Flux",slug:"flux",img:"900-global-flux",date:"2019-07",cover:"S72R Solid",ct:"Solid",finish:"4000 Abralon",core:"Amplify",cT:"Asymmetric",rg:2.550,diff:0.048,mb:0.014},
+  {id:575,brand:"Motiv",bS:"motiv",name:"Jackal Attack",slug:"jackal-attack",img:"motiv-jackal-attack",date:"2019-07",cover:"Coercion HV2 Solid",ct:"Solid",finish:"2000 LSS",core:"Predator V3",cT:"Asymmetric",rg:2.470,diff:0.055,mb:0.019},
+  {id:576,brand:"Hammer",bS:"hammer",name:"Black Widow Purple Pearl Urethane",slug:"black-widow-purple-pearl-urethane",img:"hammer-black-widow-purple-pearl-urethane",date:"2019-07",cover:"Urethane Pearl",ct:"Urethane",finish:"2000 Abralon",core:"Gas Mask",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.016},
+  {id:577,brand:"Brunswick",bS:"brunswick",name:"Jagged Edge Solid",slug:"jagged-edge-solid",img:"brunswick-jagged-edge-solid",date:"2019-07",cover:"Relativity 2.0 Solid",ct:"Solid",finish:"500/3000 Siaair MP",core:"Brink",cT:"Symmetric",rg:2.508,diff:0.043,mb:null},
+  {id:578,brand:"Brunswick",bS:"brunswick",name:"Jagged Edge Hybrid",slug:"jagged-edge-hybrid",img:"brunswick-jagged-edge-hybrid",date:"2019-07",cover:"Relativity 2.0 Hybrid",ct:"Hybrid",finish:"500/1000 Siaair + Compound",core:"Brink",cT:"Symmetric",rg:2.508,diff:0.043,mb:null},
+  {id:579,brand:"Storm",bS:"storm",name:"AstroPhysiX",slug:"astrophysix",img:"storm-astrophysix",date:"2019-06",cover:"R2S Pearl",ct:"Pearl",finish:"1500 Polished",core:"Atomic",cT:"Asymmetric",rg:2.480,diff:0.053,mb:0.017},
+  {id:580,brand:"Storm",bS:"storm",name:"!Q Tour Emerald",slug:"iq-tour-emerald",img:"storm-iq-tour-emerald",date:"2019-06",cover:"R2S Pearl",ct:"Pearl",finish:"1500 Polished",core:"C3 Centripetal Control",cT:"Symmetric",rg:2.490,diff:0.029,mb:null},
+  {id:581,brand:"Motiv",bS:"motiv",name:"Covert Tank",slug:"covert-tank",img:"motiv-covert-tank",date:"2019-06",cover:"Frixion MCP",ct:"MCP",finish:"2000 LSS",core:"Torx",cT:"Symmetric",rg:2.500,diff:0.051,mb:null},
+  {id:582,brand:"Storm",bS:"storm",name:"Code Extreme",slug:"code-extreme",img:"storm-code-extreme",date:"2019-06",cover:"NRG 2 Pearl",ct:"Pearl",finish:"1500 Polished",core:"RAD4",cT:"Asymmetric",rg:2.500,diff:0.058,mb:0.020},
+  {id:583,brand:"Motiv",bS:"motiv",name:"Jackal Magic",slug:"jackal-magic",img:"motiv-jackal-magic",date:"2019-06",cover:"Coercion HFH Hybrid",ct:"Hybrid",finish:"3000 LSS",core:"Predator V2",cT:"Asymmetric",rg:2.470,diff:0.054,mb:0.015},
+  {id:584,brand:"SWAG",bS:"swag",name:"Big Bro",slug:"big-bro",img:"swag-big-bro",date:"2019-05",cover:"Reverie 2 Pearl",ct:"Pearl",finish:"2000 Abralon",core:"Dominance",cT:"Asymmetric",rg:2.484,diff:0.054,mb:0.021},
+  {id:585,brand:"Ebonite",bS:"ebonite",name:"The One Violent",slug:"the-one-violent",img:"ebonite-the-one-violent",date:"2019-05",cover:"GB 10.7 Hybrid",ct:"Hybrid",finish:"2000 Abralon",core:"Centrex Sym. MB",cT:"Symmetric",rg:2.460,diff:0.056,mb:0.027},
+  {id:586,brand:"Storm",bS:"storm",name:"Tropical Surge Pearl",slug:"tropical-surge-pearl-various-colors",img:"storm-tropical-surge-pearl-various-colors",date:"2019-05",cover:"Reactor Pearl",ct:"Pearl",finish:"1500 Polished",core:"Surge",cT:"Symmetric",rg:2.580,diff:0.024,mb:null},
+];
+
+/* ── Constants ── */
+const X_MIN=0.005,X_MAX=0.065,Y_MIN=2.46,Y_MAX=2.70;
+const X_TICKS=[0.010,0.020,0.030,0.040,0.050,0.060];
+const Y_TICKS=[2.46,2.48,2.50,2.52,2.54,2.56,2.58,2.60,2.62,2.64,2.66,2.68,2.70];
+const ALL_CT_LIST=["All","Solid","Pearl","Hybrid","Urethane","NU","MCP","Polyester","Particle"];
+const ALL_CORE_LIST=["All","Asymmetric","Symmetric"];
+
+/* ── Mini Components ── */
+function BallImg({ball,size=44}){
+  const[e,setE]=useState(false);
+  return e
+    ?<div style={{width:size,height:size,borderRadius:size/2,background:"#1e293b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.38,flexShrink:0}}>🎳</div>
+    :<img src={THUMB(ball.img)} alt={ball.name} onError={()=>setE(true)} style={{width:size,height:size,objectFit:"contain",flexShrink:0}}/>;
+}
+function BrandLogo({brand,size=20}){
+  const[e,setE]=useState(false);
+  const f=BRAND_LOGOS[brand];
+  if(!f||e) return <span style={{fontSize:9,color:"#475569",fontWeight:600}}>{brand}</span>;
+  return <img src={LOGO(f)} alt={brand} onError={()=>setE(true)} style={{height:size,maxWidth:64,objectFit:"contain",filter:"brightness(0) invert(.55)"}}/>;
+}
+function CTBadge({ct,small}){
+  return <span style={{fontSize:small?9:10,padding:small?"1px 6px":"2px 8px",borderRadius:20,background:ctB(ct),color:ctC(ct),border:`1px solid ${ctC(ct)}40`,whiteSpace:"nowrap"}}>{ct}</span>;
+}
+function CoreBadge({cT,small}){
+  const asym=cT==="Asymmetric";
+  return <span style={{fontSize:small?9:10,padding:small?"1px 6px":"2px 8px",borderRadius:20,background:asym?"#2e1065":"#042f2e",color:asym?"#a78bfa":"#2dd4bf",whiteSpace:"nowrap"}}>{asym?"非対称":"対称"}</span>;
+}
+
+/* ── Scatter Chart (fixed axes) ── */
+function ScatterChart({balls}){
+  const[hov,setHov]=useState(null);
+  const ref=useRef(null);
+  const[w,setW]=useState(320);
+  useEffect(()=>{
+    const obs=new ResizeObserver(en=>setW(Math.max(300,en[0].contentRect.width)));
+    if(ref.current)obs.observe(ref.current);
+    return()=>obs.disconnect();
+  },[]);
+  const h=Math.max(260,w*0.68);
+  const PAD={t:16,r:58,b:52,l:46};
+  const PW=w-PAD.l-PAD.r,PH=h-PAD.t-PAD.b;
+  const xP=d=>PAD.l+(d-X_MIN)/(X_MAX-X_MIN)*PW;
+  const yP=r=>PAD.t+(Y_MAX-r)/(Y_MAX-Y_MIN)*PH;
+  const rgHue=r=>{const t=(r-Y_MIN)/(Y_MAX-Y_MIN);return `hsl(${Math.round(t*220)},90%,60%)`;};
+  const BR=Math.max(15,Math.min(24,PW/(Math.max(balls.length,1)*1.8)));
+  const hovBall=hov?balls.find(b=>b.id===hov):null;
+
+  return(
+    <div ref={ref} style={{width:"100%"}}>
+      <svg width={w} height={h} style={{display:"block",background:"#04060e",borderRadius:10}}>
+        <defs>
+          <linearGradient id="cbar2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6"/>
+            <stop offset="50%" stopColor="#22c55e"/>
+            <stop offset="80%" stopColor="#f59e0b"/>
+            <stop offset="100%" stopColor="#ef4444"/>
+          </linearGradient>
+          <clipPath id="pc2"><rect x={PAD.l} y={PAD.t} width={PW} height={PH}/></clipPath>
+        </defs>
+        <rect x={PAD.l} y={PAD.t} width={PW} height={PH} fill="#060a14" rx={3}/>
+        {X_TICKS.map(v=><line key={v} x1={xP(v)} x2={xP(v)} y1={PAD.t} y2={PAD.t+PH} stroke="#0f1e35" strokeWidth={1}/>)}
+        {Y_TICKS.map(v=><line key={v} x1={PAD.l} x2={PAD.l+PW} y1={yP(v)} y2={yP(v)} stroke="#0f1e35" strokeWidth={1}/>)}
+        {X_TICKS.filter((_,i)=>i%2===0).map(v=>(
+          <text key={v} x={xP(v)} y={PAD.t+PH+13} textAnchor="middle" fill="#334155" fontSize={8} fontFamily="monospace">{v.toFixed(3)}</text>
+        ))}
+        {Y_TICKS.filter((_,i)=>i%2===0).map(v=>(
+          <text key={v} x={PAD.l-5} y={yP(v)+3} textAnchor="end" fill="#334155" fontSize={8} fontFamily="monospace">{v.toFixed(2)}</text>
+        ))}
+        <text x={PAD.l} y={h-4} fill="#38bdf8" fontSize={9} fontWeight={600}>スムーズ</text>
+        <text x={PAD.l+PW} y={h-4} textAnchor="end" fill="#ef4444" fontSize={9} fontWeight={600}>ストロング</text>
+        <text x={9} y={PAD.t+PH/2} textAnchor="middle" fill="#475569" fontSize={9} transform={`rotate(-90,9,${PAD.t+PH/2})`}>RG</text>
+        <rect x={w-PAD.r+14} y={PAD.t} width={8} height={PH} fill="url(#cbar2)" rx={2}/>
+        <text x={w-PAD.r+18} y={PAD.t-3} textAnchor="middle" fill="#3b82f6" fontSize={7}>レイト</text>
+        <text x={w-PAD.r+18} y={PAD.t+PH+10} textAnchor="middle" fill="#ef4444" fontSize={7}>アーリー</text>
+        <rect x={PAD.l} y={PAD.t} width={PW} height={PH} fill="none" stroke="#1e293b" strokeWidth={1} rx={3}/>
+        {balls.map(ball=>{
+          if(ball.diff<X_MIN||ball.diff>X_MAX||ball.rg<Y_MIN||ball.rg>Y_MAX)return null;
+          const cx=xP(ball.diff),cy=yP(ball.rg),isH=hov===ball.id;
+          return(
+            <g key={ball.id} clipPath="url(#pc2)" onClick={()=>setHov(isH?null:ball.id)} style={{cursor:"pointer"}}>
+              {isH&&<circle cx={cx} cy={cy} r={BR+6} fill="none" stroke={rgHue(ball.rg)} strokeWidth={2} opacity={0.9}/>}
+              <circle cx={cx} cy={cy} r={BR+2} fill={rgHue(ball.rg)} opacity={0.2}/>
+              <clipPath id={`bc2_${ball.id}`}><circle cx={cx} cy={cy} r={BR}/></clipPath>
+              <image href={THUMB(ball.img)} x={cx-BR} y={cy-BR} width={BR*2} height={BR*2} clipPath={`url(#bc2_${ball.id})`} preserveAspectRatio="xMidYMid meet"/>
+              <circle cx={cx} cy={cy} r={BR} fill="none" stroke={isH?rgHue(ball.rg):"rgba(255,255,255,0.18)"} strokeWidth={isH?2:1}/>
+            </g>
+          );
+        })}
+        {hovBall&&(()=>{
+          const cx=xP(hovBall.diff),cy=yP(hovBall.rg),tw=140,th=60;
+          const tx=cx+BR+6+tw>w-PAD.r?cx-BR-6-tw:cx+BR+6;
+          const ty=Math.max(PAD.t,Math.min(PAD.t+PH-th,cy-th/2));
+          return(
+            <g>
+              <rect x={tx} y={ty} width={tw} height={th} rx={5} fill="#0d1117" stroke="#1e293b" strokeWidth={1}/>
+              <text x={tx+7} y={ty+13} fill="#f1f5f9" fontSize={10} fontWeight={700}>{hovBall.name}</text>
+              <text x={tx+7} y={ty+24} fill="#64748b" fontSize={8}>{hovBall.brand}</text>
+              <text x={tx+7} y={ty+37} fill="#38bdf8" fontSize={8} fontFamily="monospace">RG {hovBall.rg.toFixed(3)}</text>
+              <text x={tx+7} y={ty+49} fill="#a78bfa" fontSize={8} fontFamily="monospace">ΔRG {hovBall.diff.toFixed(3)}{hovBall.mb?`  MB ${hovBall.mb.toFixed(3)}`:""}</text>
+            </g>
+          );
+        })()}
+      </svg>
+      <div style={{display:"flex",gap:10,marginTop:6,flexWrap:"wrap",fontSize:10,color:"#334155",padding:"0 2px"}}>
+        {[["高RG","#3b82f6"],["中RG","#22c55e"],["低RG","#ef4444"]].map(([l,c])=>(
+          <span key={l} style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:8,height:8,borderRadius:2,background:c,display:"inline-block"}}/>{l}</span>
+        ))}
+        <span style={{marginLeft:"auto",fontSize:9}}>ボールをタップで詳細</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Compare Table ── */
+function CompareTable({balls}){
+  if(!balls.length)return null;
+  const rows=[
+    {k:"img",l:"",r:b=>(
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+        <BallImg ball={b} size={50}/>
+        <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,textAlign:"center",lineHeight:1.2,maxWidth:120}}>{b.name}</div>
+        <BrandLogo brand={b.brand} size={16}/>
+      </div>
+    )},
+    {k:"date",l:"発売日",r:b=><span style={{fontFamily:"monospace",fontSize:10,color:"#64748b"}}>{b.date}</span>},
+    {k:"ct",l:"カバー種別",r:b=><CTBadge ct={b.ct}/>},
+    {k:"cover",l:"カバーストック",r:b=><span style={{fontSize:10,color:"#94a3b8",lineHeight:1.3}}>{b.cover}</span>},
+    {k:"finish",l:"フィニッシュ",r:b=><span style={{fontSize:10,color:"#64748b"}}>{b.finish}</span>},
+    {k:"cT",l:"コアタイプ",r:b=><CoreBadge cT={b.cT}/>},
+    {k:"core",l:"コア名",r:b=><span style={{fontSize:10,color:"#94a3b8"}}>{b.core}</span>},
+    {k:"rg",l:"RG",r:b=><span style={{fontFamily:"monospace",fontSize:16,fontWeight:800,color:"#38bdf8"}}>{b.rg.toFixed(3)}</span>},
+    {k:"diff",l:"ΔRG",r:b=><span style={{fontFamily:"monospace",fontSize:16,fontWeight:800,color:"#a78bfa"}}>{b.diff.toFixed(3)}</span>},
+    {k:"mb",l:"MB差分",r:b=>b.mb!=null?<span style={{fontFamily:"monospace",fontSize:14,fontWeight:700,color:"#f97316"}}>{b.mb.toFixed(3)}</span>:<span style={{color:"#334155"}}>—</span>},
+    {k:"total",l:"RG+Diff",r:b=>{
+      const v=b.rg+b.diff;
+      const mn=Math.min(...balls.map(x=>x.rg+x.diff));
+      const mx=Math.max(...balls.map(x=>x.rg+x.diff));
+      const pct=mx===mn?0.5:(v-mn)/(mx-mn);
+      return(<div><div style={{fontFamily:"monospace",fontSize:10,color:"#475569",marginBottom:3}}>{v.toFixed(3)}</div>
+        <div style={{height:3,background:"#1e293b",borderRadius:2,width:60}}><div style={{height:"100%",width:`${pct*100}%`,background:`hsl(${Math.round((1-pct)*220)},90%,60%)`,borderRadius:2}}/></div></div>);
+    }},
+  ];
+  return(
+    <div className="hscroll" style={{borderRadius:10,border:"1px solid #1e293b"}}>
+      <table style={{borderCollapse:"collapse",fontSize:12,minWidth:160+balls.length*140}}>
+        <tbody>
+          {rows.map(row=>(
+            <tr key={row.k} style={{borderBottom:"1px solid #0f1420"}}>
+              <td style={{padding:"8px 12px",background:"#060a12",color:"#475569",fontSize:10,fontWeight:600,letterSpacing:.5,textTransform:"uppercase",whiteSpace:"nowrap",position:"sticky",left:0,minWidth:80,borderRight:"1px solid #1e293b"}}>{row.l}</td>
+              {balls.map(b=>(
+                <td key={b.id} style={{padding:"8px 12px",background:"#0d1117",textAlign:"center",verticalAlign:"middle",minWidth:140,borderRight:"1px solid #0f1420"}}>{row.r(b)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ── Detail Modal ── */
+function DetailModal({ball,collection,onToggle,onClose}){
+  const[ie,setIe]=useState(false);
+  const own=collection.has(ball.id);
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:400,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#0d1117",borderRadius:"18px 18px 0 0",width:"100%",maxWidth:520,maxHeight:"90vh",overflowY:"auto",paddingBottom:`max(20px,env(safe-area-inset-bottom))`}}>
+        {/* Handle */}
+        <div style={{width:36,height:4,background:"#334155",borderRadius:2,margin:"12px auto 0"}}/>
+        {/* Hero */}
+        <div style={{background:"#080c14",padding:"14px 18px",display:"flex",gap:14,alignItems:"center",borderBottom:"1px solid #1e293b",marginTop:8}}>
+          {ie?<div style={{width:80,height:80,borderRadius:40,background:"#1e293b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,flexShrink:0}}>🎳</div>
+            :<img src={MAIN(ball.img)} alt={ball.name} onError={()=>setIe(true)} style={{width:80,height:80,objectFit:"contain",flexShrink:0}}/>}
+          <div>
+            <BrandLogo brand={ball.brand} size={18}/>
+            <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9",lineHeight:1.1,marginTop:5,marginBottom:7}}>{ball.name}</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              <CTBadge ct={ball.ct}/>
+              <CoreBadge cT={ball.cT}/>
+              <span style={{fontSize:10,padding:"2px 7px",borderRadius:20,background:"#0f172a",color:"#64748b"}}>{ball.date}</span>
+            </div>
+          </div>
+        </div>
+        <div style={{padding:"14px 18px"}}>
+          {/* RG/Diff/MB */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+            {[["RG",ball.rg.toFixed(3),"#38bdf8"],["ΔRG",ball.diff.toFixed(3),"#a78bfa"],ball.mb!=null?["MB",ball.mb.toFixed(3),"#f97316"]:null].filter(Boolean).map(([l,v,c])=>(
+              <div key={l} style={{background:"#080c14",borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
+                <div style={{fontSize:9,color:"#475569",marginBottom:4}}>{l}</div>
+                <div style={{fontSize:18,fontWeight:800,color:c,fontFamily:"monospace"}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          {/* Specs */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            {[["カバーストック",ball.cover],["フィニッシュ",ball.finish],["コア名",ball.core]].map(([l,v])=>(
+              <div key={l} style={{background:"#080c14",borderRadius:8,padding:"8px 10px",gridColumn:l==="フィニッシュ"?"1/3":undefined}}>
+                <div style={{fontSize:9,color:"#475569",marginBottom:2}}>{l}</div>
+                <div style={{fontSize:11,color:"#cbd5e1"}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          {/* Buttons */}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{onToggle(ball.id);onClose();}} style={{flex:1,padding:"13px",borderRadius:12,cursor:"pointer",fontWeight:800,fontSize:15,border:"none",background:own?"#7f1d1d":"#1d4ed8",color:"#fff"}}>
+              {own?"🗑 削除":"＋ コレクションに追加"}
+            </button>
+            <a href={DETAIL(ball.bS,ball.slug)} target="_blank" rel="noreferrer"
+              style={{padding:"13px 14px",borderRadius:12,background:"#1e293b",color:"#94a3b8",fontSize:12,display:"flex",alignItems:"center"}}>
+              bowwwl↗
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Lineup Modal ── */
+function LineupModal({owned,editIdx,initForm,onSave,onClose,allBalls}){
+  const[form,setForm]=useState(initForm);
+  const setName=useCallback(e=>setForm(f=>({...f,name:e.target.value})),[]);
+  const setCond=useCallback(e=>setForm(f=>({...f,condition:e.target.value})),[]);
+  const setNote=useCallback(e=>setForm(f=>({...f,notes:e.target.value})),[]);
+  const toggleB=useCallback(id=>setForm(f=>({...f,balls:f.balls.includes(id)?f.balls.filter(x=>x!==id):[...f.balls,id]})),[]);
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:400,display:"flex",alignItems:"flex-end"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#0d1117",borderRadius:"18px 18px 0 0",width:"100%",maxHeight:"92vh",overflowY:"auto",paddingBottom:`max(20px,env(safe-area-inset-bottom))`}}>
+        <div style={{width:36,height:4,background:"#334155",borderRadius:2,margin:"12px auto 6px"}}/>
+        <div style={{padding:"0 18px 18px"}}>
+          <div style={{fontSize:16,fontWeight:800,marginBottom:16}}>{editIdx!=null?"ラインナップを編集":"新規ラインナップ"}</div>
+          {[["ラインナップ名 *","name",setName,"例: 全日本選手権"],["コンディション","condition",setCond,"例: 45ft Heavy"]].map(([l,k,fn,ph])=>(
+            <div key={k} style={{marginBottom:10}}>
+              <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4}}>{l}</label>
+              <input value={form[k]} onChange={fn} placeholder={ph} style={{width:"100%",padding:"11px 12px",borderRadius:10,border:"1px solid #1e293b",background:"#080c14",color:"#f1f5f9",fontSize:14}}/>
+            </div>
+          ))}
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4}}>メモ</label>
+            <textarea value={form.notes} onChange={setNote} placeholder="投球戦略・調整メモ" style={{width:"100%",padding:"11px 12px",borderRadius:10,border:"1px solid #1e293b",background:"#080c14",color:"#f1f5f9",fontSize:14,minHeight:64,resize:"vertical",fontFamily:"inherit"}}/>
+          </div>
+          <div style={{marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+              <label style={{fontSize:11,color:"#64748b"}}>ボールを選択（マイコレクション）</label>
+              <span style={{fontSize:11,color:"#475569"}}>{form.balls.length}個</span>
+            </div>
+            {owned.length===0
+              ?<div style={{color:"#334155",fontSize:13,padding:12,background:"#0a0f1a",borderRadius:8,textAlign:"center"}}>先にボールをコレクションに追加してください</div>
+              :owned.map(ball=>{
+                const sel=form.balls.includes(ball.id);
+                return(
+                  <div key={ball.id} onClick={()=>toggleB(ball.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,cursor:"pointer",marginBottom:6,background:sel?"#0a1f3d":"#0a0f1a",border:`1px solid ${sel?"#1d4ed8":"#1e293b"}`}}>
+                    <div style={{width:20,height:20,borderRadius:5,flexShrink:0,border:`2px solid ${sel?"#3b82f6":"#334155"}`,background:sel?"#3b82f6":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      {sel&&<span style={{fontSize:11,color:"#fff",lineHeight:1}}>✓</span>}
+                    </div>
+                    <BallImg ball={ball} size={36}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"#f1f5f9",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ball.brand} {ball.name}</div>
+                      <div style={{fontSize:10,color:"#475569"}}>{ball.ct} · {ball.cT==="Asymmetric"?"非対称":"対称"} · RG {ball.rg}</div>
+                    </div>
+                  </div>
+                );
+              })
+            }
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{if(!form.name.trim()){alert("ラインナップ名を入力してください");return;}onSave(form);}} style={{flex:1,padding:"14px",borderRadius:12,cursor:"pointer",background:"#f97316",border:"none",color:"#000",fontWeight:800,fontSize:15}}>
+              {editIdx!=null?"更新する":"作成する"}
+            </button>
+            <button onClick={onClose} style={{padding:"14px 18px",borderRadius:12,cursor:"pointer",background:"#1e293b",border:"none",color:"#64748b",fontSize:15}}>✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Export / Import Modal ── */
+function DataModal({col,lineups,extra,onImport,onClose}){
+  const[mode,setMode]=useState("export"); // "export"|"import"
+  const[txt,setTxt]=useState("");
+  const[msg,setMsg]=useState("");
+
+  const exportData=()=>{
+    const data={col:[...col],lineups,extra,ver:1,ts:Date.now()};
+    const json=JSON.stringify(data);
+    setTxt(json);
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(json).then(()=>setMsg("✓ クリップボードにコピーしました")).catch(()=>setMsg("下のテキストをコピーしてください"));
+    } else setMsg("下のテキストをコピーしてください");
+  };
+
+  const importData=()=>{
+    try{
+      const data=JSON.parse(txt);
+      if(!data.ver)throw new Error("invalid");
+      onImport(data);
+      setMsg("✓ インポート完了");
+    }catch{setMsg("⚠ データの形式が正しくありません");}
+  };
+
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:500,display:"flex",alignItems:"flex-end"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#0d1117",borderRadius:"18px 18px 0 0",width:"100%",maxHeight:"85vh",overflowY:"auto",paddingBottom:`max(20px,env(safe-area-inset-bottom))`}}>
+        <div style={{width:36,height:4,background:"#334155",borderRadius:2,margin:"12px auto 8px"}}/>
+        <div style={{padding:"0 18px 18px"}}>
+          <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>💾 データのバックアップ</div>
+          <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>データをテキストとして保存・復元できます</div>
+          <div style={{display:"flex",gap:8,marginBottom:16}}>
+            {[["export","📤 エクスポート"],["import","📥 インポート"]].map(([id,l])=>(
+              <button key={id} onClick={()=>{setMode(id);setMsg("");setTxt("");}} style={{flex:1,padding:"11px",borderRadius:10,cursor:"pointer",fontSize:13,fontWeight:mode===id?700:400,background:mode===id?"#0f2147":"#1e293b",border:`1px solid ${mode===id?"#1d4ed8":"#334155"}`,color:mode===id?"#60a5fa":"#64748b"}}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {mode==="export"&&(
+            <>
+              <div style={{fontSize:12,color:"#64748b",marginBottom:10}}>
+                現在のデータ：コレクション <b style={{color:"#f97316"}}>{col.size}個</b>、ラインナップ <b style={{color:"#38bdf8"}}>{lineups.length}件</b>
+              </div>
+              <button onClick={exportData} style={{width:"100%",padding:"13px",borderRadius:12,cursor:"pointer",background:"#1d4ed8",border:"none",color:"#fff",fontWeight:700,fontSize:15,marginBottom:12}}>
+                データをコピー／表示する
+              </button>
+              {txt&&(
+                <textarea readOnly value={txt} style={{width:"100%",padding:"10px",borderRadius:10,border:"1px solid #1e293b",background:"#080c14",color:"#94a3b8",fontSize:10,height:120,fontFamily:"monospace",resize:"none"}}/>
+              )}
+            </>
+          )}
+          {mode==="import"&&(
+            <>
+              <div style={{fontSize:12,color:"#64748b",marginBottom:10}}>
+                エクスポートしたテキストをここに貼り付けてください
+              </div>
+              <textarea value={txt} onChange={e=>setTxt(e.target.value)} placeholder="ここにバックアップデータを貼り付け…"
+                style={{width:"100%",padding:"10px",borderRadius:10,border:"1px solid #1e293b",background:"#080c14",color:"#f1f5f9",fontSize:11,height:120,fontFamily:"monospace",resize:"none",marginBottom:12}}/>
+              <button onClick={importData} style={{width:"100%",padding:"13px",borderRadius:12,cursor:"pointer",background:txt?"#f97316":"#334155",border:"none",color:txt?"#000":"#475569",fontWeight:700,fontSize:15}}>
+                データを復元する
+              </button>
+            </>
+          )}
+          {msg&&<div style={{marginTop:12,padding:"10px",borderRadius:8,background:msg.startsWith("✓")?"#14532d":"#450a0a",color:msg.startsWith("✓")?"#22c55e":"#ef4444",fontSize:13,textAlign:"center"}}>{msg}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function App(){
+  const[extra,setExtra]=useState([]);
+  const[col,setCol]=useState(new Set());
+  const[lineups,setLineups]=useState([]);
+  const[tab,setTab]=useState("db");
+  const[filter,setFilter]=useState({brand:"All",ct:"All",cT:"All",search:""});
+  const[sort,setSort]=useState({field:"date",dir:"desc"});
+  const[detail,setDetail]=useState(null);
+  const[lModal,setLModal]=useState(false);
+  const[editIdx,setEditIdx]=useState(null);
+  const[initForm,setInitForm]=useState({name:"",condition:"",notes:"",balls:[]});
+  const[aiQ,setAiQ]=useState("");
+  const[aiLoad,setAiLoad]=useState(false);
+  const[toast,setToast]=useState("");
+  const[lSub,setLSub]=useState({});
+  const[filterOpen,setFilterOpen]=useState(false);
+  const[dataModal,setDataModal]=useState(false);
+  const[saveStatus,setSaveStatus]=useState("idle");
+  const showToast=(m,ms=2500)=>{setToast(m);setTimeout(()=>setToast(""),ms);};
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const c=await LS.get("ba_col");if(c)setCol(new Set(JSON.parse(c.value)));
+        const l=await LS.get("ba_lin");if(l)setLineups(JSON.parse(l.value));
+        const x=await LS.get("ba_ext");if(x){setExtra(JSON.parse(x.value));}
+      }catch(e){console.warn("Load error",e);}
+    })();
+  },[]);
+
+  const allBalls=[...BALLS,...extra];
+
+  const saveCol=async s=>{
+    setCol(s);
+    setSaveStatus("saving");
+    try{
+      await LS.set("ba_col",JSON.stringify([...s]));
+      setSaveStatus("saved");
+      setTimeout(()=>setSaveStatus("idle"),1500);
+    }catch(e){setSaveStatus("error");showToast("⚠ 保存に失敗しました。エクスポートでバックアップしてください");}
+  };
+  const saveLin=async a=>{
+    setLineups(a);
+    setSaveStatus("saving");
+    try{
+      await LS.set("ba_lin",JSON.stringify(a));
+      setSaveStatus("saved");
+      setTimeout(()=>setSaveStatus("idle"),1500);
+      showToast("保存しました ✓");
+    }catch(e){setSaveStatus("error");showToast("⚠ 保存失敗 — エクスポートでバックアップを");}
+  };
+  const toggleOwn=id=>{const s=new Set(col);s.has(id)?s.delete(id):s.add(id);saveCol(s);};
+
+  const handleImport=async data=>{
+    try{
+      if(data.col){const s=new Set(data.col);setCol(s);await LS.set("ba_col",JSON.stringify(data.col));}
+      if(data.lineups){setLineups(data.lineups);await LS.set("ba_lin",JSON.stringify(data.lineups));}
+      if(data.extra){setExtra(data.extra);await LS.set("ba_ext",JSON.stringify(data.extra));}
+      showToast("✓ インポート完了");
+      setDataModal(false);
+    }catch{showToast("⚠ インポートエラー");}
+  };
+
+  /* AI search */
+  const doAI=async()=>{
+    if(!aiQ.trim()||aiLoad)return;
+    setAiLoad(true);
+    try{
+      const resp=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,
+          tools:[{type:"web_search_20250305",name:"web_search"}],
+          system:`Search bowwwl.com for bowling balls. Return ONLY raw JSON array. Each object: {"brand":"","bS":"url-slug","name":"","slug":"","img":"brand-ball-slug","date":"YYYY-MM","cover":"","ct":"Solid|Pearl|Hybrid|Urethane|NU|MCP|Polyester|Particle","finish":"","core":"","cT":"Symmetric|Asymmetric","rg":2.480,"diff":0.050,"mb":null}. Return [] if nothing found.`,
+          messages:[{role:"user",content:`Search bowwwl.com: "${aiQ}". Return JSON.`}]
+        })
+      });
+      const data=await resp.json();
+      const text=(data.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("");
+      const m=text.match(/\[[\s\S]*\]/);
+      if(m){
+        const fresh=JSON.parse(m[0]);
+        if(fresh.length){
+          const maxId=Math.max(...allBalls.map(b=>b.id),999);
+          const tagged=fresh.map((b,i)=>({...b,id:maxId+i+1}));
+          setExtra(prev=>{
+            const names=new Set(allBalls.map(b=>`${b.brand}:${b.name}`));
+            const added=tagged.filter(b=>!names.has(`${b.brand}:${b.name}`));
+            const next=[...prev,...added];
+            LS.set("ba_ext",JSON.stringify(next));
+            return next;
+          });
+          showToast(`${tagged.length}件追加しました`);
+        }else showToast("見つかりませんでした");
+      }
+    }catch{showToast("検索エラー");}
+    setAiLoad(false);
+  };
+
+  /* Filter / Sort */
+  const ALL_BRANDS=["All",...[...new Set(allBalls.map(b=>b.brand))].sort()];
+  const displayed=allBalls.filter(b=>{
+    if(filter.brand!=="All"&&b.brand!==filter.brand)return false;
+    if(filter.ct!=="All"&&b.ct!==filter.ct)return false;
+    if(filter.cT!=="All"&&b.cT!==filter.cT)return false;
+    if(filter.search){const q=filter.search.toLowerCase();if(!`${b.brand} ${b.name} ${b.cover} ${b.core}`.toLowerCase().includes(q))return false;}
+    return true;
+  }).sort((a,b)=>{
+    const d=sort.dir==="asc"?1:-1;
+    if(sort.field==="date")return(a.date>b.date?1:-1)*d;
+    if(sort.field==="name")return a.name.localeCompare(b.name)*d;
+    if(sort.field==="rg")return(a.rg-b.rg)*d;
+    if(sort.field==="diff")return(a.diff-b.diff)*d;
+    return 0;
+  });
+  const onSort=f=>setSort(s=>s.field===f?{...s,dir:s.dir==="asc"?"desc":"asc"}:{field:f,dir:"desc"});
+  const owned=allBalls.filter(b=>col.has(b.id));
+  const openNew=()=>{setInitForm({name:"",condition:"",notes:"",balls:[]});setEditIdx(null);setLModal(true);};
+  const openEdit=idx=>{setInitForm({...lineups[idx]});setEditIdx(idx);setLModal(true);};
+  const onSave=form=>{const next=editIdx!=null?lineups.map((l,i)=>i===editIdx?{...form}:l):[...lineups,{...form}];saveLin(next);setLModal(false);};
+  const getSub=(idx)=>lSub[idx]||"chart";
+  const setSub=(idx,v)=>setLSub(s=>({...s,[idx]:v}));
+
+  /* ── Renders ── */
+  const renderDB=()=>(
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {/* Search bar */}
+      <div style={{padding:"10px 14px 6px",background:"#060a12",borderBottom:"1px solid #0f1e35"}}>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <input value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))}
+            placeholder="🔍 ボール名 / カバー / コアで検索"
+            style={{flex:1,padding:"10px 12px",borderRadius:10,border:"1px solid #1e293b",background:"#0d1117",color:"#f1f5f9",fontSize:14}}/>
+          <button onClick={()=>setFilterOpen(v=>!v)} style={{padding:"10px 14px",borderRadius:10,background:filterOpen?"#f97316":"#1e293b",border:"none",color:filterOpen?"#000":"#94a3b8",fontSize:13,whiteSpace:"nowrap",cursor:"pointer"}}>
+            フィルタ
+          </button>
+        </div>
+        {filterOpen&&(
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",paddingBottom:4}}>
+            {[["brand",ALL_BRANDS,"ブランド"],["ct",ALL_CT_LIST,"カバー"],["cT",ALL_CORE_LIST,"コア"]].map(([k,opts,label])=>(
+              <select key={k} value={filter[k]} onChange={e=>setFilter(f=>({...f,[k]:e.target.value}))}
+                style={{padding:"8px 10px",borderRadius:8,border:"1px solid #1e293b",background:"#0d1117",color:"#94a3b8",fontSize:12,flex:1,minWidth:90}}>
+                <option value="All">全{label}</option>
+                {opts.slice(1).map(o=><option key={o}>{o}</option>)}
+              </select>
+            ))}
+          </div>
+        )}
+        <div style={{display:"flex",gap:8}}>
+          <input value={aiQ} onChange={e=>setAiQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doAI()}
+            placeholder="AI検索でボール追加…"
+            style={{flex:1,padding:"9px 12px",borderRadius:10,border:"1px solid #1e293b",background:"#0d1117",color:"#f1f5f9",fontSize:13}}/>
+          <button onClick={doAI} disabled={aiLoad} style={{padding:"9px 14px",borderRadius:10,background:aiLoad?"#1e293b":"#f97316",border:"none",color:aiLoad?"#475569":"#000",fontWeight:700,fontSize:12,whiteSpace:"nowrap",cursor:"pointer"}}>
+            {aiLoad?"…":"AI検索"}
+          </button>
+        </div>
+        <div style={{fontSize:11,color:"#334155",marginTop:6,textAlign:"center"}}>{displayed.length}件 / 計{allBalls.length}球</div>
+      </div>
+      {/* Ball list */}
+      <div className="scroll" style={{flex:1,padding:"8px 14px"}}>
+        {displayed.map(ball=>{
+          const own=col.has(ball.id);
+          return(
+            <div key={ball.id} onClick={()=>setDetail(ball)}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:12,marginBottom:8,cursor:"pointer",background:own?"#0b1525":"#0d1117",border:`1px solid ${own?"#1e3a5f":"#1e293b"}`}}>
+              <BallImg ball={ball} size={50}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,color:"#334155",fontFamily:"monospace",marginBottom:1}}>{ball.brand} · {ball.date}</div>
+                <div style={{fontSize:14,fontWeight:700,color:own?"#93c5fd":"#f1f5f9",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:5}}>{ball.name}</div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  <CTBadge ct={ball.ct} small/>
+                  <CoreBadge cT={ball.cT} small/>
+                  <span style={{fontSize:9,fontFamily:"monospace",color:"#38bdf8"}}>RG {ball.rg}</span>
+                  <span style={{fontSize:9,fontFamily:"monospace",color:"#a78bfa"}}>{ball.diff}</span>
+                </div>
+              </div>
+              <button onClick={e=>{e.stopPropagation();toggleOwn(ball.id);}} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${own?"#1d4ed8":"#334155"}`,background:own?"#1d4ed820":"transparent",color:own?"#60a5fa":"#475569",fontSize:11,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                {own?"✓ 所持":"＋"}
+              </button>
+            </div>
+          );
+        })}
+        {displayed.length===0&&<div style={{textAlign:"center",padding:"60px 20px",color:"#334155"}}><div style={{fontSize:36,marginBottom:12}}>🔍</div>該当なし</div>}
+        <div style={{height:90}}/>
+      </div>
+    </div>
+  );
+
+  const renderCol=()=>(
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{padding:"10px 14px 8px",background:"#060a12",borderBottom:"1px solid #0f1e35"}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {Object.keys(CT).map(t=>{const n=owned.filter(b=>b.ct===t).length;if(!n)return null;
+            return(<div key={t} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:20,background:ctB(t),border:`1px solid ${ctC(t)}40`}}>
+              <span style={{fontSize:10,color:ctC(t)}}>{t}</span>
+              <span style={{fontSize:13,fontWeight:700,color:"#f1f5f9",fontFamily:"monospace"}}>{n}</span>
+            </div>);
+          })}
+          <span style={{fontSize:11,color:"#475569",alignSelf:"center",marginLeft:"auto"}}>計{owned.length}個</span>
+        </div>
+      </div>
+      <div className="scroll" style={{flex:1,padding:"8px 14px"}}>
+        {owned.length===0
+          ?<div style={{textAlign:"center",padding:"80px 20px",color:"#334155"}}><div style={{fontSize:48,marginBottom:14}}>🎳</div><div style={{fontSize:16,fontWeight:700,marginBottom:8}}>コレクションが空です</div><div style={{fontSize:13}}>「データベース」でボールを追加してください</div></div>
+          :owned.map(ball=>(
+            <div key={ball.id} onClick={()=>setDetail(ball)}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:12,marginBottom:8,cursor:"pointer",background:"#0b1525",border:"1px solid #1e3a5f"}}>
+              <BallImg ball={ball} size={52}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,color:"#334155",fontFamily:"monospace",marginBottom:1}}>{ball.brand}</div>
+                <div style={{fontSize:14,fontWeight:700,color:"#f1f5f9",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:5}}>{ball.name}</div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  <CTBadge ct={ball.ct} small/>
+                  <CoreBadge cT={ball.cT} small/>
+                  <span style={{fontSize:9,fontFamily:"monospace",color:"#38bdf8"}}>RG {ball.rg}</span>
+                  <span style={{fontSize:9,fontFamily:"monospace",color:"#a78bfa"}}>{ball.diff}</span>
+                  {ball.mb&&<span style={{fontSize:9,fontFamily:"monospace",color:"#f97316"}}>MB {ball.mb}</span>}
+                </div>
+              </div>
+            </div>
+          ))
+        }
+        <div style={{height:90}}/>
+      </div>
+    </div>
+  );
+
+  const renderLineups=()=>(
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{padding:"10px 14px 8px",background:"#060a12",borderBottom:"1px solid #0f1e35",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:13,color:"#475569"}}>{lineups.length}件のラインナップ</span>
+        <button onClick={openNew} style={{padding:"9px 16px",borderRadius:10,background:"#f97316",border:"none",color:"#000",fontWeight:700,fontSize:13,cursor:"pointer"}}>＋ 新規</button>
+      </div>
+      <div className="scroll" style={{flex:1,padding:"8px 14px"}}>
+        {lineups.length===0
+          ?<div style={{textAlign:"center",padding:"80px 20px",color:"#334155"}}><div style={{fontSize:48,marginBottom:14}}>📋</div><div style={{fontSize:16,fontWeight:700,marginBottom:8}}>ラインナップがありません</div><div style={{fontSize:13}}>「＋ 新規」から作成してください</div></div>
+          :lineups.map((lin,idx)=>{
+            const linBalls=lin.balls.map(id=>allBalls.find(b=>b.id===id)).filter(Boolean);
+            const sub=getSub(idx);
+            return(
+              <div key={idx} style={{background:"#0d1117",border:"1px solid #1e293b",borderRadius:14,marginBottom:12,overflow:"hidden"}}>
+                <div style={{padding:"12px 14px",borderBottom:"1px solid #1e293b"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:16,fontWeight:700,color:"#f1f5f9",marginBottom:2}}>{lin.name}</div>
+                      {lin.condition&&<div style={{fontSize:11,color:"#64748b"}}>🏟 {lin.condition}</div>}
+                      {lin.notes&&<div style={{fontSize:11,color:"#475569",marginTop:2,whiteSpace:"pre-wrap"}}>{lin.notes}</div>}
+                      <div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>
+                        {[...new Set(linBalls.map(b=>b.ct))].map(t=><CTBadge key={t} ct={t} small/>)}
+                        <span style={{fontSize:10,color:"#334155",alignSelf:"center"}}>{linBalls.length}球</span>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <button onClick={()=>openEdit(idx)} style={{padding:"6px 11px",borderRadius:8,cursor:"pointer",background:"#1e293b",border:"none",color:"#94a3b8",fontSize:12}}>編集</button>
+                      <button onClick={()=>{if(confirm("削除しますか？"))saveLin(lineups.filter((_,i)=>i!==idx));}} style={{padding:"6px 11px",borderRadius:8,cursor:"pointer",background:"#1e293b",border:"none",color:"#ef4444",fontSize:12}}>削除</button>
+                    </div>
+                  </div>
+                </div>
+                {linBalls.length===0
+                  ?<div style={{padding:"16px",color:"#334155",textAlign:"center",fontSize:13}}>ボールが選択されていません</div>
+                  :<div style={{padding:"12px 14px"}}>
+                    {/* Sub tabs */}
+                    <div style={{display:"flex",gap:6,marginBottom:12}}>
+                      {[["chart","📊 グラフ"],["table","📋 比較表"],["balls","🎳 一覧"]].map(([id,l])=>(
+                        <button key={id} onClick={()=>setSub(idx,id)} style={{flex:1,padding:"7px 4px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:sub===id?700:400,background:sub===id?"#0f2147":"transparent",border:`1px solid ${sub===id?"#1d4ed8":"#1e293b"}`,color:sub===id?"#60a5fa":"#64748b"}}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                    {sub==="chart"&&<ScatterChart balls={linBalls}/>}
+                    {sub==="table"&&<CompareTable balls={linBalls}/>}
+                    {sub==="balls"&&(
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                        {linBalls.map(ball=>(
+                          <div key={ball.id} onClick={()=>setDetail(ball)} style={{background:"#080c14",border:"1px solid #1e293b",borderRadius:10,padding:"10px",cursor:"pointer",display:"flex",gap:8,alignItems:"center"}}>
+                            <BallImg ball={ball} size={44}/>
+                            <div style={{minWidth:0}}>
+                              <div style={{fontSize:9,color:"#334155",fontFamily:"monospace"}}>{ball.brand}</div>
+                              <div style={{fontSize:12,fontWeight:600,color:"#f1f5f9",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ball.name}</div>
+                              <CTBadge ct={ball.ct} small/>
+                              <div style={{fontSize:10,color:"#475569",fontFamily:"monospace",marginTop:2}}>{ball.rg}/{ball.diff}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                }
+              </div>
+            );
+          })
+        }
+        <div style={{height:90}}/>
+      </div>
+    </div>
+  );
+
+  /* ── Bottom Nav ── */
+  const NAV=[
+    {id:"db",icon:"🗄",label:"データベース"},
+    {id:"col",icon:"🎳",label:"コレクション"},
+    {id:"lin",icon:"📋",label:"ラインナップ"},
+  ];
+
+  return(
+    <div style={{height:"100%",display:"flex",flexDirection:"column",background:"#080c14"}}>
+      {/* Header */}
+      <div style={{background:"#040710",borderBottom:"1px solid #0f1e35",padding:`${window.innerHeight>700?"10px":"7px"} 16px`,paddingTop:`max(10px,env(safe-area-inset-top))`,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:22}}>🎳</span>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,letterSpacing:-.5,fontFamily:"monospace",lineHeight:1}}>BOWLING ARSENAL</div>
+            <div style={{fontSize:8,color:"#334155",letterSpacing:2,textTransform:"uppercase"}}>bowwwl.com · {allBalls.length} balls</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          {saveStatus==="saving"&&<span style={{fontSize:10,color:"#f59e0b"}}>保存中…</span>}
+          {saveStatus==="saved"&&<span style={{fontSize:10,color:"#22c55e"}}>✓ 保存済</span>}
+          {saveStatus==="error"&&<span style={{fontSize:10,color:"#ef4444"}}>✗ 保存失敗</span>}
+          <button onClick={()=>setDataModal(true)} style={{padding:"6px 10px",borderRadius:8,background:"#1e293b",border:"1px solid #334155",color:"#94a3b8",fontSize:11,cursor:"pointer"}}>💾 バックアップ</button>
+          <div style={{display:"flex",gap:10}}>
+            {[["所持",`${col.size}`,`#f97316`],["ライン",`${lineups.length}`,`#38bdf8`]].map(([k,v,c])=>(
+              <div key={k} style={{textAlign:"center"}}>
+                <div style={{fontSize:8,color:"#334155",letterSpacing:1}}>{k}</div>
+                <div style={{fontWeight:700,color:c,fontFamily:"monospace",fontSize:14}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Toast */}
+      {toast&&(
+        <div style={{position:"fixed",top:70,left:"50%",transform:"translateX(-50%)",zIndex:500,background:"#14532d",border:"1px solid #15803d",color:"#22c55e",fontSize:12,padding:"8px 16px",borderRadius:20,whiteSpace:"nowrap"}}>
+          {toast}
+        </div>
+      )}
+
+      {/* Content */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {tab==="db"&&renderDB()}
+        {tab==="col"&&renderCol()}
+        {tab==="lin"&&renderLineups()}
+      </div>
+
+      {/* Bottom Nav */}
+      <div style={{background:"#040710",borderTop:"1px solid #0f1e35",display:"flex",paddingBottom:`env(safe-area-inset-bottom)`,flexShrink:0}}>
+        {NAV.map(({id,icon,label})=>(
+          <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"10px 4px 8px",background:"transparent",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+            <span style={{fontSize:22,lineHeight:1}}>{icon}</span>
+            <span style={{fontSize:9,fontWeight:tab===id?700:400,color:tab===id?"#f97316":"#475569",letterSpacing:.3}}>{label}</span>
+            {tab===id&&<div style={{width:20,height:2,background:"#f97316",borderRadius:1}}/>}
+          </button>
+        ))}
+      </div>
+
+      {/* Modals */}
+      {detail&&<DetailModal ball={detail} collection={col} onToggle={toggleOwn} onClose={()=>setDetail(null)}/>}
+      {lModal&&<LineupModal owned={owned} editIdx={editIdx} initForm={initForm} onSave={onSave} onClose={()=>setLModal(false)} allBalls={allBalls}/>}
+      {dataModal&&<DataModal col={col} lineups={lineups} extra={extra} onImport={handleImport} onClose={()=>setDataModal(false)}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
